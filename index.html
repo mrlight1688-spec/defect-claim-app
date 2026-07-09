@@ -465,7 +465,12 @@ const CONFIG = {
   GOOGLE_CLIENT_ID: '801474527307-dujbl8nm23o7mpmpm164csgkr0uc9pa5.apps.googleusercontent.com',
 
   // Must be the exact same folder ID as CONFIG.DRIVE_FOLDER_ID in Code.gs.
-  DRIVE_FOLDER_ID: '1Sbs6zMa4XEXy2tUXxlDf1ePUxa30e5Gd'
+  DRIVE_FOLDER_ID: '1Sbs6zMa4XEXy2tUXxlDf1ePUxa30e5Gd',
+
+  // Must match CONFIG.API_SECRET in Code.gs EXACTLY — every request automatically
+  // includes this, so the backend can tell it's really coming from this app and
+  // not a stranger who found the WEB_APP_URL. Not shown anywhere in the UI.
+  API_SECRET: '2QbUeOWoplTxB5JdNb8C5a4II4NH4QVV'
 };
 
 /****************************************************************
@@ -997,7 +1002,7 @@ function callGoogleScriptRun(action, params) {
 }
 
 function apiGet(action, params) {
-  params = params || {};
+  params = Object.assign({ secret: CONFIG.API_SECRET }, params || {});
   if (IS_EMBEDDED) {
     return callGoogleScriptRun(action, params);
   }
@@ -1008,6 +1013,7 @@ function apiGet(action, params) {
 // Note: for the fetch() fallback, body is sent as a plain string with no custom headers,
 // to avoid triggering a CORS preflight (OPTIONS) request
 function apiPost(payload) {
+  payload = Object.assign({ secret: CONFIG.API_SECRET }, payload);
   if (IS_EMBEDDED) {
     return callGoogleScriptRun(payload.action, payload);
   }
