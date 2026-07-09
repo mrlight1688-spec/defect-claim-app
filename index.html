@@ -98,16 +98,6 @@
     display:flex;align-items:center;justify-content:center;font-size:26px;color:var(--gray-400);
     cursor:pointer;background:#fff;
   }
-  .add-menu{
-    position:absolute;top:100%;left:0;margin-top:6px;z-index:40;
-    background:#fff;border:1px solid var(--gray-200);border-radius:8px;box-shadow:var(--shadow);
-    min-width:170px;overflow:hidden;text-align:left;
-  }
-  .add-menu-item{
-    padding:11px 14px;font-size:13px;white-space:nowrap;cursor:pointer;color:var(--gray-800);font-weight:500;
-  }
-  .add-menu-item:hover{background:var(--gray-50);}
-  .add-menu-item:not(:last-child){border-bottom:1px solid var(--gray-100);}
   .video-thumb{
     position:relative;width:72px;height:72px;border-radius:8px;overflow:hidden;border:1px solid var(--gray-200);
     background:var(--gray-100);display:flex;flex-direction:column;align-items:center;justify-content:center;
@@ -1359,9 +1349,8 @@ function renderPhotoRow() {
   const addBtn = document.createElement('div');
   addBtn.className = 'upload-btn';
   addBtn.textContent = '＋';
-  addBtn.addEventListener('click', function (e) {
-    e.stopPropagation();
-    toggleAddMenu(addBtn, 'photo');
+  addBtn.addEventListener('click', function () {
+    document.getElementById('photoInput').click();
   });
   row.appendChild(addBtn);
 
@@ -1373,47 +1362,13 @@ function renderPhotoRow() {
   });
 }
 
-// The "+" button opens a small menu with two choices — take a new photo/video
-// or choose an existing one from the gallery — instead of two separate icon
-// buttons side by side. Both options route through the SAME native file input
-// (toggling the `capture` attribute right before triggering it) rather than
-// our own in-page camera — Apps Script serves this page inside a Google-
-// controlled iframe that doesn't grant camera permission to getUserMedia(),
-// so that approach isn't reliable here. The native file input's camera
-// capture doesn't depend on that permission delegation at all.
-function toggleAddMenu(anchorEl, kind) {
-  closeAddMenu();
-  const menu = document.createElement('div');
-  menu.className = 'add-menu';
-  const cameraLabel = (kind === 'photo' ? '📷 ' : '🎥 ') + t('camera_button_title');
-  menu.innerHTML =
-    '<div class="add-menu-item" data-action="camera">' + cameraLabel + '</div>' +
-    '<div class="add-menu-item" data-action="gallery">🖼️ ' + t('gallery_button_title') + '</div>';
-  anchorEl.appendChild(menu);
-
-  const inputId = kind === 'photo' ? 'photoInput' : 'videoInput';
-
-  menu.querySelector('[data-action="camera"]').addEventListener('click', function (e) {
-    e.stopPropagation();
-    closeAddMenu();
-    const input = document.getElementById(inputId);
-    input.setAttribute('capture', 'environment'); // jump straight to the camera
-    input.click();
-  });
-  menu.querySelector('[data-action="gallery"]').addEventListener('click', function (e) {
-    e.stopPropagation();
-    closeAddMenu();
-    const input = document.getElementById(inputId);
-    input.removeAttribute('capture'); // show the full picker (gallery + camera option)
-    input.click();
-  });
-}
-
-function closeAddMenu() {
-  document.querySelectorAll('.add-menu').forEach(function (m) { m.remove(); });
-}
-
-document.addEventListener('click', closeAddMenu);
+// The "+" button triggers the native file picker directly (no custom menu) —
+// on both iOS and Android this picker itself offers "Take Photo/Video" as one
+// of its options alongside the gallery, at full native camera quality. We
+// used to force the camera open via the `capture` attribute for a dedicated
+// "take photo" menu item, but that forces a lower-quality "quick capture"
+// mode on many devices instead of the phone's real Camera app — letting the
+// native picker handle the choice avoids that entirely.
 
 /****************************************************************
  * ============ Page 1: Video upload ============
@@ -1601,9 +1556,8 @@ function renderVideoRow() {
   const addBtn = document.createElement('div');
   addBtn.className = 'upload-btn';
   addBtn.textContent = '＋';
-  addBtn.addEventListener('click', function (e) {
-    e.stopPropagation();
-    toggleAddMenu(addBtn, 'video');
+  addBtn.addEventListener('click', function () {
+    document.getElementById('videoInput').click();
   });
   row.appendChild(addBtn);
 
