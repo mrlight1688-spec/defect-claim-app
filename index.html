@@ -409,6 +409,16 @@
     <label data-i18n="label_remarks">Remarks</label>
     <textarea id="m_remarks"></textarea>
     <button class="btn" id="m_saveBtn" data-i18n="btn_save" style="margin-top:16px;">Save</button>
+
+    <div id="m_deleteSection" style="display:none;margin-top:24px;padding-top:20px;border-top:1px solid var(--gray-200);">
+      <p style="font-size:13px;color:var(--gray-600);margin:0 0 10px;" data-i18n="delete_now_desc">This claim is marked as a successful resolution. You can delete it right now instead of waiting for the automatic 30-day cleanup.</p>
+      <div class="checkbox-row" style="margin-top:0;">
+        <input type="checkbox" id="m_deleteConfirm">
+        <label for="m_deleteConfirm" data-i18n="delete_now_confirm_label">I understand this permanently deletes this record and its Drive photos/videos</label>
+      </div>
+      <button class="btn btn-secondary" id="m_deleteBtn" data-i18n="btn_delete_now" disabled style="margin-top:12px;">🗑️ Delete Now</button>
+      <div id="m_deleteMsg" class="msg" style="margin-top:10px;"></div>
+    </div>
   </div>
 </div>
 
@@ -546,6 +556,10 @@ const TRANSLATIONS = {
     modal_title_update: 'Update Status: {id}',
     label_status: 'Status', label_resolved_date: 'Resolved Date (fill in when status is Resolved)',
     label_remarks: 'Remarks', btn_save: 'Save', btn_saving: 'Saving...',
+    delete_now_desc: 'This claim is marked as a successful resolution. You can delete it right now instead of waiting for the automatic 30-day cleanup.',
+    delete_now_confirm_label: 'I understand this permanently deletes this record and its Drive photos/videos',
+    btn_delete_now: '🗑️ Delete Now', btn_deleting_now: 'Deleting...',
+    msg_delete_now_fail: '⚠️ Delete failed: {err}',
     msg_load_claims_fail: '⚠️ Failed to load: {err}',
     err_no_data: 'No data returned from the server — please try again',
     msg_load_suppliers_fail: '⚠️ Failed to load supplier list. Please check your CONFIG settings: {err}',
@@ -644,6 +658,10 @@ const TRANSLATIONS = {
     modal_title_update: 'Kemas Kini Status: {id}',
     label_status: 'Status', label_resolved_date: 'Tarikh Selesai (isi apabila status Selesai)',
     label_remarks: 'Catatan', btn_save: 'Simpan', btn_saving: 'Sedang menyimpan...',
+    delete_now_desc: 'Tuntutan ini ditanda sebagai penyelesaian berjaya. Anda boleh memadamnya sekarang tanpa menunggu pembersihan automatik 30 hari.',
+    delete_now_confirm_label: 'Saya faham ini akan memadam kekal rekod ini dan foto/video Drive berkaitan',
+    btn_delete_now: '🗑️ Padam Sekarang', btn_deleting_now: 'Memadam...',
+    msg_delete_now_fail: '⚠️ Pemadaman gagal: {err}',
     msg_load_claims_fail: '⚠️ Gagal memuatkan: {err}',
     err_no_data: 'Tiada data dikembalikan dari pelayan — sila cuba lagi',
     msg_load_suppliers_fail: '⚠️ Gagal memuatkan senarai pembekal. Sila semak tetapan CONFIG anda: {err}',
@@ -742,6 +760,10 @@ const TRANSLATIONS = {
     modal_title_update: 'Perbarui Status: {id}',
     label_status: 'Status', label_resolved_date: 'Tanggal Selesai (isi saat status Selesai)',
     label_remarks: 'Catatan', btn_save: 'Simpan', btn_saving: 'Menyimpan...',
+    delete_now_desc: 'Klaim ini ditandai sebagai penyelesaian berhasil. Anda bisa menghapusnya sekarang tanpa menunggu pembersihan otomatis 30 hari.',
+    delete_now_confirm_label: 'Saya paham ini akan menghapus permanen data ini dan foto/video Drive terkait',
+    btn_delete_now: '🗑️ Hapus Sekarang', btn_deleting_now: 'Menghapus...',
+    msg_delete_now_fail: '⚠️ Penghapusan gagal: {err}',
     msg_load_claims_fail: '⚠️ Gagal memuat: {err}',
     err_no_data: 'Tidak ada data yang dikembalikan dari server — silakan coba lagi',
     msg_load_suppliers_fail: '⚠️ Gagal memuat daftar pemasok. Harap periksa pengaturan CONFIG Anda: {err}',
@@ -840,6 +862,10 @@ const TRANSLATIONS = {
     modal_title_update: '更新状态：{id}',
     label_status: '状态', label_resolved_date: '解决日期（状态为已解决时填写）',
     label_remarks: '备注', btn_save: '保存', btn_saving: '保存中...',
+    delete_now_desc: '这笔记录已标记为成功索赔，你可以现在就删除它，不用等30天自动清理。',
+    delete_now_confirm_label: '我明白这将永久删除这笔记录及其 Drive 照片/视频',
+    btn_delete_now: '🗑️ 立即删除', btn_deleting_now: '删除中...',
+    msg_delete_now_fail: '⚠️ 删除失败：{err}',
     msg_load_claims_fail: '⚠️ 加载失败：{err}',
     err_no_data: '服务器没有返回资料——请重试',
     msg_load_suppliers_fail: '⚠️ 供应商列表加载失败，请检查 CONFIG 设置：{err}',
@@ -968,7 +994,8 @@ const GAS_RUN_FUNCTIONS = {
   addClaim: 'apiAddClaim',
   updateStatus: 'apiUpdateStatus',
   markReported: 'apiMarkReported',
-  cleanupOldClaims: 'apiCleanupOldClaims'
+  cleanupOldClaims: 'apiCleanupOldClaims',
+  deleteClaimNow: 'apiDeleteClaimNow'
 };
 
 function callGoogleScriptRun(action, params) {
@@ -1954,8 +1981,42 @@ function openStatusModal(rowIndex) {
   document.getElementById('m_status').value = record['Status'] || 'Open';
   document.getElementById('m_resolvedDate').value = record['Resolved Date'] || '';
   document.getElementById('m_remarks').value = record['Remarks'] || '';
+
+  // Only claims already saved as "Resolved - Claim Successful" get the option
+  // to delete right now instead of waiting for the automatic 30-day cleanup.
+  const deleteSection = document.getElementById('m_deleteSection');
+  deleteSection.style.display = (record['Status'] === 'Resolved - Claim Successful') ? 'block' : 'none';
+  document.getElementById('m_deleteConfirm').checked = false;
+  document.getElementById('m_deleteBtn').disabled = true;
+  document.getElementById('m_deleteMsg').className = 'msg';
+  document.getElementById('m_deleteMsg').textContent = '';
+
   document.getElementById('modalOverlay').classList.add('show');
 }
+
+document.getElementById('m_deleteConfirm').addEventListener('change', function () {
+  document.getElementById('m_deleteBtn').disabled = !this.checked;
+});
+
+document.getElementById('m_deleteBtn').addEventListener('click', function () {
+  if (!currentRowIndex) return;
+  const btn = this;
+  const msgEl = document.getElementById('m_deleteMsg');
+  btn.disabled = true;
+  btn.textContent = t('btn_deleting_now');
+
+  apiPost({ action: 'deleteClaimNow', rowIndex: currentRowIndex }).then(function (res) {
+    if (res.error) throw new Error(res.error);
+    document.getElementById('modalOverlay').classList.remove('show');
+    loadClaimsOverview();
+  }).catch(function (err) {
+    msgEl.className = 'msg show error';
+    msgEl.textContent = t('msg_delete_now_fail', { err: err.message });
+  }).finally(function () {
+    btn.disabled = false;
+    btn.textContent = t('btn_delete_now');
+  });
+});
 
 document.getElementById('modalClose').addEventListener('click', function () {
   document.getElementById('modalOverlay').classList.remove('show');
