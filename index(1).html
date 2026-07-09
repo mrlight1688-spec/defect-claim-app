@@ -1,0 +1,2414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Supplier Defect Claim Manager</title>
+<!-- Google Identity Services — used only for the optional "direct to Drive" upload path (OAuth token request). Harmless/no-op if CONFIG.GOOGLE_CLIENT_ID is left blank. -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+  /* ========== Global Styles ========== */
+  :root{
+    --primary:#2563eb;
+    --primary-dark:#1d4ed8;
+    --danger:#dc2626;
+    --danger-bg:#fee2e2;
+    --warning:#d97706;
+    --warning-bg:#fef3c7;
+    --success:#16a34a;
+    --success-bg:#dcfce7;
+    --gray-50:#f8fafc;
+    --gray-100:#f1f5f9;
+    --gray-200:#e2e8f0;
+    --gray-400:#94a3b8;
+    --gray-600:#475569;
+    --gray-800:#1e293b;
+    --radius:12px;
+    --shadow:0 1px 3px rgba(0,0,0,0.08),0 1px 2px rgba(0,0,0,0.04);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
+    background:var(--gray-50);
+    color:var(--gray-800);
+    padding-bottom:70px;
+  }
+  .container{max-width:720px;margin:0 auto;padding:16px;}
+  header{
+    background:#fff;
+    border-bottom:1px solid var(--gray-200);
+    position:sticky;top:0;z-index:20;
+  }
+  header .container{padding:14px 16px 0 16px;}
+  .header-top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px;}
+  header h1{font-size:18px;margin:0;color:var(--gray-800);}
+  #langSwitcher{
+    width:auto;padding:6px 10px;font-size:12px;font-weight:600;border:1px solid var(--gray-200);
+    border-radius:8px;background:#fff;color:var(--gray-800);flex-shrink:0;
+  }
+  .tabs{display:flex;gap:4px;}
+  .tab-btn{
+    flex:1;padding:10px 4px;text-align:center;font-size:12px;font-weight:600;
+    background:none;border:none;border-bottom:3px solid transparent;
+    color:var(--gray-600);cursor:pointer;border-radius:8px 8px 0 0;
+  }
+  .tab-btn.active{color:var(--primary);border-bottom-color:var(--primary);background:var(--gray-50);}
+
+  .card{background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);padding:18px;margin-bottom:16px;}
+  .card h2{font-size:16px;margin:0 0 14px 0;}
+
+  label{display:block;font-size:13px;font-weight:600;color:var(--gray-600);margin:14px 0 6px;}
+  label:first-of-type{margin-top:0;}
+  input[type=text], input[type=number], input[type=date], select, textarea{
+    width:100%;padding:11px 12px;font-size:15px;border:1px solid var(--gray-200);
+    border-radius:8px;background:#fff;color:var(--gray-800);
+  }
+  textarea{min-height:80px;resize:vertical;font-family:inherit;}
+  input:focus, select:focus, textarea:focus{outline:none;border-color:var(--primary);}
+
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:6px;
+    padding:12px 18px;font-size:15px;font-weight:600;border:none;border-radius:8px;
+    cursor:pointer;background:var(--primary);color:#fff;width:100%;
+  }
+  .btn:active{background:var(--primary-dark);}
+  .btn:disabled{background:var(--gray-400);cursor:not-allowed;}
+  .btn-secondary{background:var(--gray-100);color:var(--gray-800);}
+  .btn-small{width:auto;padding:8px 14px;font-size:13px;}
+
+  .msg{
+    padding:12px 14px;border-radius:8px;font-size:14px;margin-bottom:14px;display:none;
+  }
+  .msg.show{display:block;}
+  .msg.success{background:var(--success-bg);color:var(--success);}
+  .msg.error{background:var(--danger-bg);color:var(--danger);}
+  .msg.info{background:#dbeafe;color:var(--primary-dark);}
+
+  /* Photo upload */
+  .photo-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+  .photo-thumb{position:relative;width:72px;height:72px;border-radius:8px;overflow:hidden;border:1px solid var(--gray-200);}
+  .photo-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+  .photo-thumb .remove{
+    position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:50%;
+    background:rgba(0,0,0,0.6);color:#fff;border:none;font-size:12px;line-height:1;cursor:pointer;
+  }
+  .upload-btn{
+    position:relative;width:72px;height:72px;border:2px dashed var(--gray-200);border-radius:8px;
+    display:flex;align-items:center;justify-content:center;font-size:26px;color:var(--gray-400);
+    cursor:pointer;background:#fff;
+  }
+  .add-menu{
+    position:absolute;top:100%;left:0;margin-top:6px;z-index:40;
+    background:#fff;border:1px solid var(--gray-200);border-radius:8px;box-shadow:var(--shadow);
+    min-width:170px;overflow:hidden;text-align:left;
+  }
+  .add-menu-item{
+    padding:11px 14px;font-size:13px;white-space:nowrap;cursor:pointer;color:var(--gray-800);font-weight:500;
+  }
+  .add-menu-item:hover{background:var(--gray-50);}
+  .add-menu-item:not(:last-child){border-bottom:1px solid var(--gray-100);}
+  .video-thumb{
+    position:relative;width:72px;height:72px;border-radius:8px;overflow:hidden;border:1px solid var(--gray-200);
+    background:var(--gray-100);display:flex;flex-direction:column;align-items:center;justify-content:center;
+    font-size:9px;color:var(--gray-600);padding:4px;text-align:center;
+  }
+  .video-thumb .icon{font-size:22px;}
+  .video-thumb .fname{margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%;}
+  .video-thumb .remove{
+    position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:50%;
+    background:rgba(0,0,0,0.6);color:#fff;border:none;font-size:12px;line-height:1;cursor:pointer;
+  }
+
+  /* Status badges */
+  .status-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;}
+  .dot-open{background:var(--danger);}
+  .dot-pending{background:var(--warning);}
+  .dot-resolved{background:var(--success);}
+  .dot-rejected{background:var(--gray-400);}
+
+  .supplier-group{margin-bottom:18px;}
+  .supplier-group h3{font-size:15px;margin:0 0 8px 4px;color:var(--gray-800);}
+  .claim-item{
+    background:#fff;border-radius:10px;padding:12px 14px;margin-bottom:8px;box-shadow:var(--shadow);
+    cursor:pointer;
+  }
+  .claim-item .top-row{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--gray-600);}
+  .claim-item .claim-id{font-weight:700;color:var(--gray-800);font-size:14px;}
+  .claim-item .prod{margin-top:4px;font-size:14px;}
+  .claim-item .meta{margin-top:4px;font-size:12px;color:var(--gray-600);}
+
+  .empty-tip{text-align:center;color:var(--gray-400);padding:40px 0;font-size:14px;}
+
+  /* Modal */
+  .overlay{
+    display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:100;
+    align-items:flex-end;justify-content:center;
+  }
+  .overlay.show{display:flex;}
+  .modal{
+    background:#fff;width:100%;max-width:720px;border-radius:16px 16px 0 0;padding:20px;
+    max-height:85vh;overflow-y:auto;
+  }
+  .modal h3{margin-top:0;}
+  .modal .close-x{float:right;background:none;border:none;font-size:20px;color:var(--gray-400);cursor:pointer;}
+
+  .filter-row{display:flex;gap:8px;}
+  .filter-row > *{flex:1;}
+
+  .report-output{margin-top:16px;}
+  .report-box{
+    background:var(--gray-50);border:1px solid var(--gray-200);border-radius:8px;padding:12px;
+    font-size:13px;white-space:pre-wrap;max-height:320px;overflow-y:auto;line-height:1.6;
+  }
+  .report-box table{width:100%;border-collapse:collapse;font-size:12px;}
+  .report-box td, .report-box th{border:1px solid var(--gray-200);padding:6px 8px;text-align:left;}
+  .report-actions{display:flex;gap:8px;margin-top:10px;}
+
+  .checkbox-row{display:flex;align-items:center;gap:8px;margin-top:14px;}
+  .checkbox-row input{width:auto;}
+  .checkbox-row label{margin:0;font-weight:500;}
+
+  .loading{text-align:center;color:var(--gray-400);padding:20px;font-size:14px;}
+  .cleanup-desc{font-size:13px;color:var(--gray-600);margin-top:0;}
+
+  /* Analysis table */
+  .analysis-table{width:100%;border-collapse:collapse;font-size:13px;min-width:560px;}
+  .analysis-table th, .analysis-table td{border-bottom:1px solid var(--gray-200);padding:8px 10px;text-align:left;white-space:nowrap;}
+  .analysis-table th{color:var(--gray-600);font-size:12px;background:var(--gray-50);}
+  .analysis-table td.wrap{white-space:normal;}
+  .analysis-table tr:last-child td{border-bottom:none;}
+
+  /* Product autocomplete */
+  .autocomplete-wrap{position:relative;}
+  .suggestion-list{
+    display:none;position:absolute;z-index:30;top:100%;left:0;right:0;margin-top:4px;
+    background:#fff;border:1px solid var(--gray-200);border-radius:8px;box-shadow:var(--shadow);
+    max-height:240px;overflow-y:auto;
+  }
+  .suggestion-list.show{display:block;}
+  .suggestion-item{padding:10px 12px;font-size:14px;cursor:pointer;border-bottom:1px solid var(--gray-100);}
+  .suggestion-item:last-child{border-bottom:none;}
+  .suggestion-item:hover{background:var(--gray-50);}
+  .suggestion-item .sku{font-size:12px;color:var(--gray-600);margin-top:2px;}
+  .suggestion-more{padding:8px 12px;font-size:12px;color:var(--gray-400);text-align:center;font-style:italic;}
+
+  @media (max-width:480px){
+    .filter-row{flex-direction:column;}
+  }
+</style>
+</head>
+<body>
+
+<!-- ========================= Top Navigation ========================= -->
+<header>
+  <div class="container">
+    <div class="header-top">
+      <h1 data-i18n="app_title">📦 Supplier Defect Claim Manager</h1>
+      <select id="langSwitcher">
+        <option value="en">English</option>
+        <option value="ms">Bahasa Melayu</option>
+        <option value="id">Bahasa Indonesia</option>
+        <option value="zh">中文</option>
+      </select>
+    </div>
+    <div class="tabs">
+      <button class="tab-btn active" data-page="page1" data-i18n="tab_log">📝 Log Defect</button>
+      <button class="tab-btn" data-page="page2" data-i18n="tab_overview">📋 Claim Overview</button>
+      <button class="tab-btn" data-page="page3" data-i18n="tab_report">📤 Generate Report</button>
+      <button class="tab-btn" data-page="page4" data-i18n="tab_analysis">📊 Analysis</button>
+    </div>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- ========================= Page 1: Log Defect ========================= -->
+  <div id="page1" class="page">
+    <div class="card">
+      <h2 data-i18n="page1_h2">Log a New Defective / Damaged Item</h2>
+      <div id="msg1" class="msg"></div>
+      <div id="supplierLoadMsg" class="msg"></div>
+      <div id="driveConnectBox" class="msg info" style="display:none;">
+        <span id="driveConnectStatus"></span>
+        <button type="button" class="btn btn-small" id="driveConnectBtn" style="margin-top:8px;"></button>
+      </div>
+
+      <input type="hidden" id="f_supplier">
+
+      <label data-i18n="label_product">Product Name *</label>
+      <div class="autocomplete-wrap">
+        <input type="text" id="f_product" autocomplete="off" data-i18n-placeholder="ph_product" placeholder="e.g. Wireless Bluetooth Earbuds">
+        <div class="suggestion-list" id="productSuggestions"></div>
+      </div>
+      <div id="productLoadMsg" class="msg" style="margin-top:6px;font-size:12px;"></div>
+
+      <label data-i18n="label_sku">SKU (optional)</label>
+      <div class="autocomplete-wrap">
+        <input type="text" id="f_sku" autocomplete="off" data-i18n-placeholder="ph_sku" placeholder="e.g. BT-EARBUD-001">
+        <div class="suggestion-list" id="skuSuggestions"></div>
+      </div>
+      <div id="kitInfoBox" class="msg" style="margin-top:6px;font-size:13px;"></div>
+
+      <label data-i18n="label_qty">Qty Defective *</label>
+      <input type="number" id="f_qty" min="1" data-i18n-placeholder="ph_qty" placeholder="e.g. 5">
+
+      <label data-i18n="label_defect_type">Defect Type *</label>
+      <select id="f_type">
+        <option value="Broken" data-i18n="defect_broken">Broken</option>
+        <option value="Defective" data-i18n="defect_defective">Defective</option>
+        <option value="Wrong Item" data-i18n="defect_wrong">Wrong Item</option>
+        <option value="Missing Parts" data-i18n="defect_missing">Missing Parts</option>
+        <option value="Others" data-i18n="defect_others">Others</option>
+      </select>
+
+      <label data-i18n="label_description">Description</label>
+      <textarea id="f_desc" data-i18n-placeholder="ph_description" placeholder="Describe the defect in detail..."></textarea>
+
+      <label data-i18n="label_photos">Photos (multiple allowed, take photo directly on mobile)</label>
+      <div class="photo-row" id="photoRow">
+        <label class="upload-btn" for="photoInput">＋</label>
+      </div>
+      <input type="file" id="photoInput" accept="image/*" multiple style="display:none">
+
+      <label data-i18n="label_videos">Videos (optional — large files may be slow to upload)</label>
+      <div class="photo-row" id="videoRow">
+        <label class="upload-btn" for="videoInput">＋</label>
+      </div>
+      <input type="file" id="videoInput" accept="video/*" multiple style="display:none">
+      <div id="videoCompressMsg" class="msg" style="margin-top:6px;font-size:12px;"></div>
+
+      <button class="btn" id="submitBtn" data-i18n="btn_submit" disabled style="margin-top:20px;">Submit</button>
+    </div>
+  </div>
+
+  <!-- ========================= Page 2: Claim Status Overview ========================= -->
+  <div id="page2" class="page" style="display:none;">
+    <div class="card">
+      <h2 data-i18n="page2_h2">Claim Status Overview</h2>
+      <div class="checkbox-row">
+        <input type="checkbox" id="showResolved">
+        <label for="showResolved" data-i18n="chk_show_resolved">Show Resolved claims (Successful / Rejected)</label>
+      </div>
+      <button class="btn btn-secondary btn-small" id="refreshBtn" data-i18n="btn_refresh" style="margin-top:12px;">🔄 Refresh</button>
+    </div>
+    <div id="claimsList"></div>
+
+    <div class="card">
+      <h2 data-i18n="cleanup_h2">🧹 Clean Up Old Successful Claims</h2>
+      <p class="cleanup-desc" id="cleanupDesc"></p>
+      <div class="checkbox-row">
+        <input type="checkbox" id="cleanupConfirm">
+        <label for="cleanupConfirm" data-i18n="cleanup_confirm_label">I understand this permanently deletes the sheet rows and their Drive photos</label>
+      </div>
+      <button class="btn btn-secondary" id="cleanupBtn" data-i18n="btn_cleanup" disabled style="margin-top:14px;">🧹 Clean Up Now</button>
+      <div id="cleanupMsg" class="msg" style="margin-top:10px;"></div>
+    </div>
+  </div>
+
+  <!-- ========================= Page 3: Generate Claim Report ========================= -->
+  <div id="page3" class="page" style="display:none;">
+    <div class="card">
+      <h2 data-i18n="page3_h2">Generate Claim Report</h2>
+      <label data-i18n="label_supplier">Supplier</label>
+      <select id="r_supplier"><option value="" data-i18n="opt_loading">Loading...</option></select>
+      <div id="lastReportTip" class="msg info" style="display:none;margin-top:8px;"></div>
+
+      <div class="checkbox-row">
+        <input type="checkbox" id="r_onlyUnresolved" checked>
+        <label for="r_onlyUnresolved" data-i18n="chk_only_unresolved">Only include unresolved (Open / Pending) claims</label>
+      </div>
+
+      <label data-i18n="label_date_range">Date Range (leave blank = no limit. Auto-filled with the date after "last sent" once a supplier is selected)</label>
+      <div class="filter-row">
+        <div>
+          <input type="date" id="r_dateFrom">
+        </div>
+        <div>
+          <input type="date" id="r_dateTo">
+        </div>
+      </div>
+
+      <button class="btn" id="genBtn" data-i18n="btn_generate" style="margin-top:18px;">Generate Report</button>
+
+      <div id="reportResult" class="report-output" style="display:none;">
+        <h2 style="margin-top:20px;" data-i18n="h_wechat">💬 WeChat Version</h2>
+        <div class="report-box" id="wechatBox"></div>
+        <div class="report-actions">
+          <button class="btn btn-small" id="copyWechatBtn" data-i18n="btn_copy_wechat">📋 Copy WeChat Text</button>
+        </div>
+
+        <h2 style="margin-top:24px;" data-i18n="h_email">📧 Email Version (optional)</h2>
+        <div class="report-box" id="emailBox"></div>
+        <div class="report-actions">
+          <button class="btn btn-small" id="copyEmailBtn" data-i18n="btn_copy_email">📋 Copy Email Content</button>
+        </div>
+
+        <div class="report-actions" style="margin-top:18px;">
+          <button class="btn" id="markSentBtn" data-i18n="btn_mark_sent">✅ Sent to Supplier — Update Cutoff Date</button>
+        </div>
+        <div id="markSentMsg" class="msg" style="margin-top:10px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================= Page 4: Damage Analysis ========================= -->
+  <div id="page4" class="page" style="display:none;">
+    <div class="card">
+      <h2 data-i18n="page4_h2">📊 Damage Analysis</h2>
+      <label data-i18n="label_date_range_simple">Date Range (leave blank = all time)</label>
+      <div class="filter-row">
+        <div>
+          <input type="date" id="a_dateFrom">
+        </div>
+        <div>
+          <input type="date" id="a_dateTo">
+        </div>
+      </div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="a_excludeRejected" checked>
+        <label for="a_excludeRejected" data-i18n="chk_exclude_rejected">Exclude rejected claims from analysis</label>
+      </div>
+      <button class="btn" id="analyzeBtn" data-i18n="btn_analyze" style="margin-top:18px;">Analyze</button>
+      <div id="analysisMsg" class="msg" style="margin-top:10px;"></div>
+    </div>
+
+    <div id="analysisResult" style="display:none;">
+      <div class="card">
+        <div id="analysisSummary" style="font-size:14px;font-weight:600;color:var(--gray-800);"></div>
+      </div>
+      <div class="card">
+        <div style="overflow-x:auto;">
+          <table id="analysisTable" class="analysis-table">
+            <thead>
+              <tr>
+                <th data-i18n="th_rank">#</th>
+                <th data-i18n="th_product">Product</th>
+                <th data-i18n="th_sku">SKU</th>
+                <th data-i18n="th_total_qty">Total Qty</th>
+                <th data-i18n="th_claims">Claims</th>
+                <th data-i18n="th_breakdown">Defect Types</th>
+              </tr>
+            </thead>
+            <tbody id="analysisTableBody"></tbody>
+          </table>
+        </div>
+        <div class="report-actions" style="margin-top:14px;">
+          <button class="btn btn-small" id="exportCsvBtn" data-i18n="btn_export_csv">⬇️ Export as CSV</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ========================= Status Update Modal ========================= -->
+<div class="overlay" id="modalOverlay">
+  <div class="modal">
+    <button class="close-x" id="modalClose">✕</button>
+    <h3 id="modalTitle" data-i18n="modal_title_default">Update Claim Status</h3>
+    <label data-i18n="label_status">Status</label>
+    <select id="m_status">
+      <option value="Open" data-i18n="status_open">🔴 Open</option>
+      <option value="Pending Supplier Reply" data-i18n="status_pending">🟡 Pending Supplier Reply</option>
+      <option value="Resolved - Claim Successful" data-i18n="status_success">🟢 Resolved - Claim Successful</option>
+      <option value="Resolved - Rejected" data-i18n="status_rejected">⚫ Resolved - Rejected</option>
+    </select>
+    <label data-i18n="label_resolved_date">Resolved Date (fill in when status is Resolved)</label>
+    <input type="date" id="m_resolvedDate">
+    <label data-i18n="label_remarks">Remarks</label>
+    <textarea id="m_remarks"></textarea>
+    <button class="btn" id="m_saveBtn" data-i18n="btn_save" style="margin-top:16px;">Save</button>
+  </div>
+</div>
+
+<script>
+/****************************************************************
+ * ============ CONFIG (edit with your own info) ============
+ ****************************************************************/
+const CONFIG = {
+  // Web App URL you get after deploying the Apps Script
+  // Auto-filled by Code.gs (ScriptApp.getService().getUrl()) when served as the app's UI —
+  // you don't need to edit this line yourself.
+  // Your deployed Apps Script Web App URL — this file is hosted OUTSIDE Apps
+  // Script (e.g. on GitHub Pages), so this can't be auto-filled like the
+  // Apps-Script-hosted version; paste your actual /exec URL here.
+  WEB_APP_URL: 'https://script.google.com/macros/s/AKfycbzdrNwHWWe_56UBWCaUStXnooyGo1_f9q1wAYqYkmIZ1JyZGx_oO7KNtbRamxFEHpPd/exec',
+
+  // Your company name (used in the report header)
+  COMPANY_NAME: 'NCC Mutiara',
+
+  // Company contact info (optional, used in the Email report header)
+  COMPANY_CONTACT: '', // e.g. "Contact: Ali | Tel: +60-12-3456789"
+
+  // Number of days given to the supplier to respond
+  REPLY_DAYS: 3,
+
+  // Display only — must match CONFIG.CLEANUP_DAYS in Code.gs (the actual rule is enforced server-side)
+  CLEANUP_DAYS: 30,
+
+  // Used as the supplier on every claim when the Supplier List tab doesn't exist or has
+  // no rows in it — fill this in with your supplier's name if you don't want to maintain
+  // a Supplier List tab at all. Leave it as '' if you DO want to use Supplier List.
+  DEFAULT_SUPPLIER: 'Ma Xiao Xuan',
+
+  // ---- Optional: direct-to-Drive upload (much faster, and skips the extra
+  // video compression since there's no need to keep the upload small) ----
+  // Leave GOOGLE_CLIENT_ID blank to skip this entirely — everything still works
+  // exactly as before (photos/videos routed through Apps Script as base64,
+  // slower for large files, videos get compressed before upload).
+  //
+  // To enable: create an OAuth 2.0 "Web application" Client ID in Google Cloud
+  // Console (APIs & Services > Credentials), add "https://script.google.com"
+  // under "Authorized JavaScript origins", and paste the Client ID below. Must
+  // be signed in with the SAME Google account that owns the Drive folder.
+  GOOGLE_CLIENT_ID: '',
+
+  // Must be the exact same folder ID as CONFIG.DRIVE_FOLDER_ID in Code.gs.
+  DRIVE_FOLDER_ID: '1Sbs6zMa4XEXy2tUXxlDf1ePUxa30e5Gd'
+};
+
+/****************************************************************
+ * ============ i18n: translations for EN / MS / ID / ZH ============
+ * Switching the language selector translates BOTH the app UI and the
+ * generated WeChat/Email report text — pick whichever language your
+ * supplier reads before generating their report.
+ ****************************************************************/
+const LANG_STORAGE_KEY = 'claim_app_lang';
+const LOCALE_MAP = { en: 'en-GB', ms: 'ms-MY', id: 'id-ID', zh: 'zh-CN' };
+
+const TRANSLATIONS = {
+  en: {
+    app_title: '📦 Supplier Defect Claim Manager',
+    tab_log: '📝 Log Defect', tab_overview: '📋 Claim Overview', tab_report: '📤 Generate Report', tab_analysis: '📊 Analysis',
+    page1_h2: 'Log a New Defective / Damaged Item',
+    label_supplier: 'Supplier *', opt_loading: 'Loading...', opt_all_suppliers: 'All Suppliers',
+    opt_load_failed: '⚠️ Failed to load — check CONFIG',
+    msg_product_load_fail: '⚠️ Could not load the product list — you can still type the product name manually',
+    kit_contains_label: 'This kit contains:',
+    label_product: 'Product Name *', ph_product: 'Type to search your inventory, or enter a new product',
+    more_matches_hint: '+ {n} more match(es) — keep typing to narrow it down',
+    label_sku: 'SKU (optional)', ph_sku: 'e.g. BT-EARBUD-001',
+    label_qty: 'Qty Defective *', ph_qty: 'e.g. 5',
+    label_defect_type: 'Defect Type *',
+    defect_broken: 'Broken', defect_defective: 'Defective', defect_wrong: 'Wrong Item', defect_missing: 'Missing Parts', defect_others: 'Others',
+    label_description: 'Description', ph_description: 'Describe the defect in detail...',
+    label_photos: 'Photos (multiple allowed)',
+    label_videos: 'Videos (optional)',
+    msg_compressing_video: '🎬 Compressing video...',
+    drive_connected: '✓ Google Drive connected — photos/videos upload directly, at full quality',
+    drive_not_connected: 'Connect Google Drive for faster uploads and full video quality (optional)',
+    drive_connect: 'Connect Google Drive',
+    drive_reconnect: 'Reconnect',
+    gallery_button_title: 'Choose from gallery',
+    camera_button_title: 'Take with camera',
+    camera_title_photo: 'Take Photo',
+    camera_title_video: 'Record Video',
+    camera_capture_photo: '📷 Capture',
+    camera_start_recording: '⏺ Start Recording',
+    camera_stop_recording: '⏹ Stop Recording',
+    btn_submit: 'Submit', btn_submitting: 'Submitting...',
+    msg_fill_required: '⚠️ Please fill in Supplier, Product Name and Qty Defective',
+    msg_submit_success: '✓ Logged: {id} ({count} photo(s), {videoCount} video(s))',
+    msg_photo_fail: '⚠️ One photo failed to load and was skipped',
+    msg_submit_fail: '⚠️ Submit failed: {err}',
+
+    page2_h2: 'Claim Status Overview',
+    chk_show_resolved: 'Show Resolved claims (Successful / Rejected)',
+    btn_refresh: '🔄 Refresh',
+    empty_no_claims: 'No claims match the current filter',
+    no_supplier_label: '(No supplier specified)',
+    meta_qty: 'Qty', meta_type: 'Type',
+    status_open: '🔴 Open', status_pending: '🟡 Pending Supplier Reply',
+    status_success: '🟢 Resolved - Claim Successful', status_rejected: '⚫ Resolved - Rejected',
+    cleanup_h2: '🧹 Clean Up Old Successful Claims',
+    cleanup_desc_html: 'Permanently deletes claims marked <strong>Resolved - Claim Successful</strong> once their Resolved Date is <strong>{days}</strong>+ days old — including their photos on Google Drive. This never runs by itself; it only happens when you click the button below.',
+    cleanup_confirm_label: 'I understand this permanently deletes the sheet rows and their Drive photos',
+    btn_cleanup: '🧹 Clean Up Now', btn_cleanup_running: 'Cleaning up...',
+    cleanup_success: '✓ Deleted {rows} record(s), {photos} photo(s), and {videos} video(s) from Drive.',
+    cleanup_partial: ' ({n} photo(s) could not be deleted)',
+    cleanup_fail: '⚠️ Cleanup failed: {err}',
+
+    page3_h2: 'Generate Claim Report',
+    chk_only_unresolved: 'Only include unresolved (Open / Pending) claims',
+    label_date_range: 'Date Range (leave blank = no limit. Auto-filled with the date after "last sent" once a supplier is selected)',
+    btn_generate: 'Generate Report', btn_generating: 'Generating...',
+    tip_last_report: 'ℹ️ Last report sent to this supplier on: {date} — date range auto-set to start the day after (you can adjust it manually)',
+    tip_no_last_report: 'ℹ️ No previous report on record for this supplier — all history will be included',
+    h_wechat: '💬 WeChat Version', btn_copy_wechat: '📋 Copy WeChat Text',
+    h_email: '📧 Email Version (optional)', btn_copy_email: '📋 Copy Email Content',
+    btn_mark_sent: '✅ Sent to Supplier — Update Cutoff Date', btn_mark_sent_updating: 'Updating...',
+    msg_mark_sent_success: '✓ Cutoff date updated ({suppliers}). The next report will only include new records after {date}',
+    msg_mark_sent_partial_fail: '⚠️ Some suppliers failed to update: {errors}',
+    msg_mark_sent_fail: '⚠️ Update failed: {err}',
+    report_empty: '(No claims match the current filter)',
+    report_gen_fail: '⚠️ Generation failed: {err}',
+    copy_success: '✓ Copied',
+    copy_fail: '⚠️ Copy failed — please select and copy the text manually',
+    copy_email_success: '✓ Copied (table formatting preserved — paste directly into Gmail/Outlook)',
+
+    modal_title_default: 'Update Claim Status',
+    modal_title_update: 'Update Status: {id}',
+    label_status: 'Status', label_resolved_date: 'Resolved Date (fill in when status is Resolved)',
+    label_remarks: 'Remarks', btn_save: 'Save', btn_saving: 'Saving...',
+    msg_load_claims_fail: '⚠️ Failed to load: {err}',
+    err_no_data: 'No data returned from the server — please try again',
+    msg_load_suppliers_fail: '⚠️ Failed to load supplier list. Please check your CONFIG settings: {err}',
+    msg_no_suppliers_found: '⚠️ No suppliers found in Supplier List — please add at least one row there before logging a defect',
+
+    page4_h2: '📊 Damage Analysis',
+    label_date_range_simple: 'Date Range (leave blank = all time)',
+    chk_exclude_rejected: 'Exclude rejected claims from analysis',
+    btn_analyze: 'Analyze', btn_analyzing: 'Analyzing...',
+    analysis_summary: '{items} distinct item(s) damaged, {qty} total defective unit(s), across {claims} claim(s)',
+    th_rank: '#', th_product: 'Product', th_sku: 'SKU', th_total_qty: 'Total Qty', th_claims: 'Claims', th_breakdown: 'Defect Types',
+    btn_export_csv: '⬇️ Export as CSV',
+    analysis_gen_fail: '⚠️ Analysis failed: {err}',
+
+    rt_title: 'Claim Report - {supplier}', rt_company: 'Company: ', rt_date: 'Date: ',
+    rt_product: 'Product: ', rt_qty: 'Qty: ', rt_type: 'Type: ', rt_description: 'Description: ', rt_photos: 'Photos: ', rt_videos: 'Videos: ',
+    rt_summary: 'Total {count} claim(s), {qty} defective item(s) in total.',
+    rt_footer: 'Please respond and confirm the resolution (replacement / refund) within {days} days. Thank you!',
+    email_greeting: 'Dear: {supplier}',
+    email_intro: 'Hello, below is a summary of recent defective/damaged item claims. Please assist with replacement or refund:',
+    email_table_headers: ['Claim ID', 'Product', 'Qty', 'Type', 'Description', 'Photos', 'Videos'],
+    email_photo_label: 'Photo',
+    email_video_label: 'Video'
+  },
+
+  ms: {
+    app_title: '📦 Pengurus Tuntutan Kerosakan Pembekal',
+    tab_log: '📝 Rekod Kerosakan', tab_overview: '📋 Ringkasan Tuntutan', tab_report: '📤 Jana Laporan', tab_analysis: '📊 Analisis',
+    page1_h2: 'Rekod Item Rosak / Cacat Baharu',
+    label_supplier: 'Pembekal *', opt_loading: 'Sedang memuatkan...', opt_all_suppliers: 'Semua Pembekal',
+    opt_load_failed: '⚠️ Gagal memuatkan — semak CONFIG',
+    msg_product_load_fail: '⚠️ Tidak dapat memuatkan senarai produk — anda masih boleh menaip nama produk secara manual',
+    kit_contains_label: 'Kit ini mengandungi:',
+    label_product: 'Nama Produk *', ph_product: 'Taip untuk cari dalam inventori, atau masukkan produk baharu',
+    more_matches_hint: '+ {n} lagi hasil — taip lebih lanjut untuk mempersempit carian',
+    label_sku: 'SKU (pilihan)', ph_sku: 'cth: BT-EARBUD-001',
+    label_qty: 'Kuantiti Rosak *', ph_qty: 'cth: 5',
+    label_defect_type: 'Jenis Kerosakan *',
+    defect_broken: 'Pecah/Rosak', defect_defective: 'Cacat', defect_wrong: 'Barang Salah', defect_missing: 'Bahagian Hilang', defect_others: 'Lain-lain',
+    label_description: 'Penerangan', ph_description: 'Terangkan kerosakan secara terperinci...',
+    label_photos: 'Foto (boleh berbilang)',
+    label_videos: 'Video (pilihan)',
+    msg_compressing_video: '🎬 Memampatkan video...',
+    drive_connected: '✓ Google Drive disambungkan — foto/video dimuat naik terus, dalam kualiti penuh',
+    drive_not_connected: 'Sambungkan Google Drive untuk muat naik lebih pantas dan kualiti video penuh (pilihan)',
+    drive_connect: 'Sambungkan Google Drive',
+    drive_reconnect: 'Sambung Semula',
+    gallery_button_title: 'Pilih dari galeri',
+    camera_button_title: 'Ambil dengan kamera',
+    camera_title_photo: 'Ambil Gambar',
+    camera_title_video: 'Rakam Video',
+    camera_capture_photo: '📷 Tangkap',
+    camera_start_recording: '⏺ Mula Merakam',
+    camera_stop_recording: '⏹ Henti Merakam',
+    btn_submit: 'Hantar', btn_submitting: 'Sedang menghantar...',
+    msg_fill_required: '⚠️ Sila isi Pembekal, Nama Produk dan Kuantiti Rosak',
+    msg_submit_success: '✓ Direkodkan: {id} ({count} foto, {videoCount} video)',
+    msg_photo_fail: '⚠️ Satu foto gagal dimuat dan dilangkau',
+    msg_submit_fail: '⚠️ Penghantaran gagal: {err}',
+
+    page2_h2: 'Ringkasan Status Tuntutan',
+    chk_show_resolved: 'Papar tuntutan Selesai (Berjaya / Ditolak)',
+    btn_refresh: '🔄 Muat Semula',
+    empty_no_claims: 'Tiada tuntutan sepadan dengan penapis semasa',
+    no_supplier_label: '(Pembekal tidak dinyatakan)',
+    meta_qty: 'Kuantiti', meta_type: 'Jenis',
+    status_open: '🔴 Terbuka', status_pending: '🟡 Menunggu Balasan Pembekal',
+    status_success: '🟢 Selesai - Tuntutan Berjaya', status_rejected: '⚫ Selesai - Ditolak',
+    cleanup_h2: '🧹 Bersihkan Tuntutan Berjaya Lama',
+    cleanup_desc_html: 'Memadam secara kekal tuntutan bertanda <strong>Selesai - Tuntutan Berjaya</strong> apabila Tarikh Selesai sudah <strong>{days}</strong>+ hari — termasuk foto di Google Drive. Ini tidak berjalan sendiri; hanya berlaku apabila anda klik butang di bawah.',
+    cleanup_confirm_label: 'Saya faham ini akan memadam kekal baris Sheet dan foto Drive berkaitan',
+    btn_cleanup: '🧹 Bersihkan Sekarang', btn_cleanup_running: 'Sedang membersihkan...',
+    cleanup_success: '✓ Memadam {rows} rekod, {photos} foto, dan {videos} video dari Drive.',
+    cleanup_partial: ' ({n} foto tidak dapat dipadam)',
+    cleanup_fail: '⚠️ Pembersihan gagal: {err}',
+
+    page3_h2: 'Jana Laporan Tuntutan',
+    chk_only_unresolved: 'Hanya sertakan tuntutan belum selesai (Terbuka / Menunggu)',
+    label_date_range: 'Julat Tarikh (kosongkan = tiada had. Diisi automatik dengan tarikh selepas "terakhir dihantar" apabila pembekal dipilih)',
+    btn_generate: 'Jana Laporan', btn_generating: 'Sedang menjana...',
+    tip_last_report: 'ℹ️ Laporan terakhir dihantar kepada pembekal ini pada: {date} — julat tarikh ditetapkan automatik bermula sehari selepasnya (boleh disesuaikan secara manual)',
+    tip_no_last_report: 'ℹ️ Tiada rekod laporan terdahulu untuk pembekal ini — semua sejarah akan disertakan',
+    h_wechat: '💬 Versi WeChat', btn_copy_wechat: '📋 Salin Teks WeChat',
+    h_email: '📧 Versi Emel (pilihan)', btn_copy_email: '📋 Salin Kandungan Emel',
+    btn_mark_sent: '✅ Telah Dihantar kepada Pembekal — Kemas Kini Tarikh Potong', btn_mark_sent_updating: 'Sedang mengemas kini...',
+    msg_mark_sent_success: '✓ Tarikh potong dikemas kini ({suppliers}). Laporan seterusnya hanya akan menyertakan rekod baharu selepas {date}',
+    msg_mark_sent_partial_fail: '⚠️ Sebahagian pembekal gagal dikemas kini: {errors}',
+    msg_mark_sent_fail: '⚠️ Kemas kini gagal: {err}',
+    report_empty: '(Tiada tuntutan sepadan dengan penapis semasa)',
+    report_gen_fail: '⚠️ Penjanaan gagal: {err}',
+    copy_success: '✓ Disalin',
+    copy_fail: '⚠️ Gagal menyalin — sila salin teks secara manual',
+    copy_email_success: '✓ Disalin (format jadual dikekalkan — tampal terus ke Gmail/Outlook)',
+
+    modal_title_default: 'Kemas Kini Status Tuntutan',
+    modal_title_update: 'Kemas Kini Status: {id}',
+    label_status: 'Status', label_resolved_date: 'Tarikh Selesai (isi apabila status Selesai)',
+    label_remarks: 'Catatan', btn_save: 'Simpan', btn_saving: 'Sedang menyimpan...',
+    msg_load_claims_fail: '⚠️ Gagal memuatkan: {err}',
+    err_no_data: 'Tiada data dikembalikan dari pelayan — sila cuba lagi',
+    msg_load_suppliers_fail: '⚠️ Gagal memuatkan senarai pembekal. Sila semak tetapan CONFIG anda: {err}',
+    msg_no_suppliers_found: '⚠️ Tiada pembekal dijumpai dalam Supplier List — sila tambah sekurang-kurangnya satu baris sebelum merekod kerosakan',
+
+    page4_h2: '📊 Analisis Kerosakan',
+    label_date_range_simple: 'Julat Tarikh (kosongkan = sepanjang masa)',
+    chk_exclude_rejected: 'Kecualikan tuntutan yang ditolak daripada analisis',
+    btn_analyze: 'Analisis', btn_analyzing: 'Sedang menganalisis...',
+    analysis_summary: '{items} jenis item rosak, jumlah {qty} unit rosak, merentasi {claims} tuntutan',
+    th_rank: '#', th_product: 'Produk', th_sku: 'SKU', th_total_qty: 'Jumlah Keseluruhan', th_claims: 'Tuntutan', th_breakdown: 'Jenis Kerosakan',
+    btn_export_csv: '⬇️ Eksport sebagai CSV',
+    analysis_gen_fail: '⚠️ Analisis gagal: {err}',
+
+    rt_title: 'Laporan Tuntutan - {supplier}', rt_company: 'Syarikat: ', rt_date: 'Tarikh: ',
+    rt_product: 'Produk: ', rt_qty: 'Kuantiti: ', rt_type: 'Jenis: ', rt_description: 'Penerangan: ', rt_photos: 'Foto: ', rt_videos: 'Video: ',
+    rt_summary: 'Jumlah {count} tuntutan, sejumlah {qty} item rosak.',
+    rt_footer: 'Sila balas dan sahkan penyelesaian (gantian / bayaran balik) dalam tempoh {days} hari. Terima kasih!',
+    email_greeting: 'Kepada: {supplier}',
+    email_intro: 'Salam sejahtera, berikut ringkasan tuntutan barang rosak/cacat yang diterima baru-baru ini. Sila bantu proses gantian atau bayaran balik:',
+    email_table_headers: ['Claim ID', 'Produk', 'Kuantiti', 'Jenis', 'Penerangan', 'Foto', 'Video'],
+    email_photo_label: 'Foto',
+    email_video_label: 'Video'
+  },
+
+  id: {
+    app_title: '📦 Pengelola Klaim Kerusakan Pemasok',
+    tab_log: '📝 Catat Kerusakan', tab_overview: '📋 Ringkasan Klaim', tab_report: '📤 Buat Laporan', tab_analysis: '📊 Analisis',
+    page1_h2: 'Catat Barang Cacat / Rusak Baru',
+    label_supplier: 'Pemasok *', opt_loading: 'Memuat...', opt_all_suppliers: 'Semua Pemasok',
+    opt_load_failed: '⚠️ Gagal memuat — periksa CONFIG',
+    msg_product_load_fail: '⚠️ Tidak dapat memuat daftar produk — Anda tetap bisa mengetik nama produk secara manual',
+    kit_contains_label: 'Kit ini berisi:',
+    label_product: 'Nama Produk *', ph_product: 'Ketik untuk mencari di inventaris, atau masukkan produk baru',
+    more_matches_hint: '+ {n} hasil lagi — ketik lebih lanjut untuk mempersempit pencarian',
+    label_sku: 'SKU (opsional)', ph_sku: 'cth: BT-EARBUD-001',
+    label_qty: 'Jumlah Rusak *', ph_qty: 'cth: 5',
+    label_defect_type: 'Jenis Kerusakan *',
+    defect_broken: 'Rusak/Pecah', defect_defective: 'Cacat', defect_wrong: 'Barang Salah', defect_missing: 'Bagian Hilang', defect_others: 'Lainnya',
+    label_description: 'Deskripsi', ph_description: 'Jelaskan kerusakan secara detail...',
+    label_photos: 'Foto (bisa banyak)',
+    label_videos: 'Video (opsional)',
+    msg_compressing_video: '🎬 Mengompresi video...',
+    drive_connected: '✓ Google Drive tersambung — foto/video diunggah langsung, dengan kualitas penuh',
+    drive_not_connected: 'Hubungkan Google Drive untuk unggahan lebih cepat dan kualitas video penuh (opsional)',
+    drive_connect: 'Hubungkan Google Drive',
+    drive_reconnect: 'Sambungkan Ulang',
+    gallery_button_title: 'Pilih dari galeri',
+    camera_button_title: 'Ambil dengan kamera',
+    camera_title_photo: 'Ambil Foto',
+    camera_title_video: 'Rekam Video',
+    camera_capture_photo: '📷 Ambil',
+    camera_start_recording: '⏺ Mulai Merekam',
+    camera_stop_recording: '⏹ Hentikan Merekam',
+    btn_submit: 'Kirim', btn_submitting: 'Mengirim...',
+    msg_fill_required: '⚠️ Harap isi Pemasok, Nama Produk, dan Jumlah Rusak',
+    msg_submit_success: '✓ Tercatat: {id} ({count} foto, {videoCount} video)',
+    msg_photo_fail: '⚠️ Satu foto gagal dimuat dan dilewati',
+    msg_submit_fail: '⚠️ Pengiriman gagal: {err}',
+
+    page2_h2: 'Ringkasan Status Klaim',
+    chk_show_resolved: 'Tampilkan klaim Selesai (Berhasil / Ditolak)',
+    btn_refresh: '🔄 Segarkan',
+    empty_no_claims: 'Tidak ada klaim yang cocok dengan filter saat ini',
+    no_supplier_label: '(Pemasok tidak ditentukan)',
+    meta_qty: 'Jml', meta_type: 'Jenis',
+    status_open: '🔴 Terbuka', status_pending: '🟡 Menunggu Balasan Pemasok',
+    status_success: '🟢 Selesai - Klaim Berhasil', status_rejected: '⚫ Selesai - Ditolak',
+    cleanup_h2: '🧹 Bersihkan Klaim Berhasil Lama',
+    cleanup_desc_html: 'Menghapus secara permanen klaim berstatus <strong>Selesai - Klaim Berhasil</strong> setelah Tanggal Selesai berusia <strong>{days}</strong>+ hari — termasuk foto di Google Drive. Ini tidak berjalan otomatis; hanya terjadi saat Anda mengklik tombol di bawah.',
+    cleanup_confirm_label: 'Saya paham ini akan menghapus permanen baris Sheet dan foto Drive terkait',
+    btn_cleanup: '🧹 Bersihkan Sekarang', btn_cleanup_running: 'Sedang membersihkan...',
+    cleanup_success: '✓ Menghapus {rows} data, {photos} foto, dan {videos} video dari Drive.',
+    cleanup_partial: ' ({n} foto tidak dapat dihapus)',
+    cleanup_fail: '⚠️ Pembersihan gagal: {err}',
+
+    page3_h2: 'Buat Laporan Klaim',
+    chk_only_unresolved: 'Hanya sertakan klaim belum selesai (Terbuka / Menunggu)',
+    label_date_range: 'Rentang Tanggal (kosongkan = tanpa batas. Terisi otomatis dengan tanggal setelah "terakhir dikirim" saat pemasok dipilih)',
+    btn_generate: 'Buat Laporan', btn_generating: 'Membuat...',
+    tip_last_report: 'ℹ️ Laporan terakhir dikirim ke pemasok ini pada: {date} — rentang tanggal otomatis dimulai sehari setelahnya (dapat disesuaikan manual)',
+    tip_no_last_report: 'ℹ️ Belum ada catatan laporan sebelumnya untuk pemasok ini — semua riwayat akan disertakan',
+    h_wechat: '💬 Versi WeChat', btn_copy_wechat: '📋 Salin Teks WeChat',
+    h_email: '📧 Versi Email (opsional)', btn_copy_email: '📋 Salin Konten Email',
+    btn_mark_sent: '✅ Telah Dikirim ke Pemasok — Perbarui Tanggal Batas', btn_mark_sent_updating: 'Memperbarui...',
+    msg_mark_sent_success: '✓ Tanggal batas diperbarui ({suppliers}). Laporan berikutnya hanya akan menyertakan data baru setelah {date}',
+    msg_mark_sent_partial_fail: '⚠️ Sebagian pemasok gagal diperbarui: {errors}',
+    msg_mark_sent_fail: '⚠️ Pembaruan gagal: {err}',
+    report_empty: '(Tidak ada klaim yang cocok dengan filter saat ini)',
+    report_gen_fail: '⚠️ Pembuatan gagal: {err}',
+    copy_success: '✓ Disalin',
+    copy_fail: '⚠️ Gagal menyalin — silakan salin teks secara manual',
+    copy_email_success: '✓ Disalin (format tabel tetap terjaga — tempel langsung ke Gmail/Outlook)',
+
+    modal_title_default: 'Perbarui Status Klaim',
+    modal_title_update: 'Perbarui Status: {id}',
+    label_status: 'Status', label_resolved_date: 'Tanggal Selesai (isi saat status Selesai)',
+    label_remarks: 'Catatan', btn_save: 'Simpan', btn_saving: 'Menyimpan...',
+    msg_load_claims_fail: '⚠️ Gagal memuat: {err}',
+    err_no_data: 'Tidak ada data yang dikembalikan dari server — silakan coba lagi',
+    msg_load_suppliers_fail: '⚠️ Gagal memuat daftar pemasok. Harap periksa pengaturan CONFIG Anda: {err}',
+    msg_no_suppliers_found: '⚠️ Tidak ada pemasok ditemukan di Supplier List — harap tambahkan minimal satu baris sebelum mencatat kerusakan',
+
+    page4_h2: '📊 Analisis Kerusakan',
+    label_date_range_simple: 'Rentang Tanggal (kosongkan = sepanjang waktu)',
+    chk_exclude_rejected: 'Kecualikan klaim yang ditolak dari analisis',
+    btn_analyze: 'Analisis', btn_analyzing: 'Menganalisis...',
+    analysis_summary: '{items} jenis barang rusak, total {qty} unit rusak, dari {claims} klaim',
+    th_rank: '#', th_product: 'Produk', th_sku: 'SKU', th_total_qty: 'Total Jumlah', th_claims: 'Klaim', th_breakdown: 'Jenis Kerusakan',
+    btn_export_csv: '⬇️ Ekspor sebagai CSV',
+    analysis_gen_fail: '⚠️ Analisis gagal: {err}',
+
+    rt_title: 'Laporan Klaim - {supplier}', rt_company: 'Perusahaan: ', rt_date: 'Tanggal: ',
+    rt_product: 'Produk: ', rt_qty: 'Jumlah: ', rt_type: 'Jenis: ', rt_description: 'Deskripsi: ', rt_photos: 'Foto: ', rt_videos: 'Video: ',
+    rt_summary: 'Total {count} klaim, sejumlah {qty} barang rusak.',
+    rt_footer: 'Mohon balas dan konfirmasi penyelesaian (penggantian / pengembalian dana) dalam {days} hari. Terima kasih!',
+    email_greeting: 'Kepada: {supplier}',
+    email_intro: 'Halo, berikut ringkasan klaim barang cacat/rusak yang diterima baru-baru ini. Mohon bantuan proses penggantian atau pengembalian dana:',
+    email_table_headers: ['Claim ID', 'Produk', 'Jumlah', 'Jenis', 'Deskripsi', 'Foto', 'Video'],
+    email_photo_label: 'Foto',
+    email_video_label: 'Video'
+  },
+
+  zh: {
+    app_title: '📦 供应商损坏 Claim 管理系统',
+    tab_log: '📝 记录损坏', tab_overview: '📋 Claim总览', tab_report: '📤 生成报告', tab_analysis: '📊 数据分析',
+    page1_h2: '记录新的损坏 / 缺陷货物',
+    label_supplier: '供应商 *', opt_loading: '加载中...', opt_all_suppliers: '全部供应商',
+    opt_load_failed: '⚠️ 加载失败——请检查 CONFIG 设置',
+    msg_product_load_fail: '⚠️ 产品清单加载失败——你仍然可以手动输入产品名称',
+    kit_contains_label: '这个 kit 包含：',
+    label_product: '产品名称 *', ph_product: '输入以搜索库存产品，或手动输入新产品',
+    more_matches_hint: '还有 {n} 项结果，输入更多关键字可缩小范围',
+    label_sku: 'SKU（可选）', ph_sku: '例如：BT-EARBUD-001',
+    label_qty: '损坏数量 *', ph_qty: '例如：5',
+    label_defect_type: '损坏类型 *',
+    defect_broken: '破损', defect_defective: '瑕疵', defect_wrong: '错货', defect_missing: '缺件', defect_others: '其他',
+    label_description: '文字描述', ph_description: '详细描述损坏情况...',
+    label_photos: '照片（可多张）',
+    label_videos: '视频（可选）',
+    msg_compressing_video: '🎬 视频压缩中...',
+    drive_connected: '✓ 已连接 Google Drive——照片/视频将直接以原始画质上传',
+    drive_not_connected: '连接 Google Drive 可以让上传更快、视频保持原始画质（可选）',
+    drive_connect: '连接 Google Drive',
+    drive_reconnect: '重新连接',
+    gallery_button_title: '从相册选择',
+    camera_button_title: '用相机拍摄',
+    camera_title_photo: '拍照',
+    camera_title_video: '录制视频',
+    camera_capture_photo: '📷 拍摄',
+    camera_start_recording: '⏺ 开始录影',
+    camera_stop_recording: '⏹ 停止录影',
+    btn_submit: '提交记录', btn_submitting: '提交中...',
+    msg_fill_required: '⚠️ 请填写供应商、产品名称和损坏数量',
+    msg_submit_success: '✓ 已记录：{id}（照片 {count} 张，视频 {videoCount} 个）',
+    msg_photo_fail: '⚠️ 有一张照片读取失败，已跳过',
+    msg_submit_fail: '⚠️ 提交失败：{err}',
+
+    page2_h2: 'Claim 状态总览',
+    chk_show_resolved: '显示已解决的记录（成功 / 被拒）',
+    btn_refresh: '🔄 刷新数据',
+    empty_no_claims: '暂无符合条件的 Claim 记录',
+    no_supplier_label: '（未指定供应商）',
+    meta_qty: '数量', meta_type: '类型',
+    status_open: '🔴 Open', status_pending: '🟡 待供应商回复',
+    status_success: '🟢 已解决 - 成功索赔', status_rejected: '⚫ 已解决 - 被拒绝',
+    cleanup_h2: '🧹 清理旧的成功索赔记录',
+    cleanup_desc_html: '将永久删除标记为<strong>"已解决 - 成功索赔"</strong>且解决日期已满 <strong>{days}</strong> 天以上的记录 —— 包括 Google Drive 中的照片。此操作不会自动运行，只有点击下方按钮才会执行。',
+    cleanup_confirm_label: '我明白这将永久删除表格行及其 Drive 照片',
+    btn_cleanup: '🧹 立即清理', btn_cleanup_running: '清理中...',
+    cleanup_success: '✓ 已删除 {rows} 条记录、{photos} 张照片和 {videos} 个视频（Drive）。',
+    cleanup_partial: '（{n} 张照片删除失败）',
+    cleanup_fail: '⚠️ 清理失败：{err}',
+
+    page3_h2: '生成 Claim 报告',
+    chk_only_unresolved: '只包含未解决的记录',
+    label_date_range: '日期范围（留空 = 不限制。选择供应商后会自动填入"上次已发送"之后的日期）',
+    btn_generate: '生成报告', btn_generating: '生成中...',
+    tip_last_report: 'ℹ️ 该供应商上次发送报告日期：{date}，已自动从次日起累计（可手动修改）',
+    tip_no_last_report: 'ℹ️ 该供应商暂无发送记录，将累计全部历史记录',
+    h_wechat: '💬 微信版本', btn_copy_wechat: '📋 一键复制 微信文本',
+    h_email: '📧 Email 版本（可选）', btn_copy_email: '📋 一键复制 Email 内容',
+    btn_mark_sent: '✅ 已发送给供应商，更新累计起点', btn_mark_sent_updating: '更新中...',
+    msg_mark_sent_success: '✓ 已更新累计起点（{suppliers}），下次生成报告将只包含 {date} 之后的新记录',
+    msg_mark_sent_partial_fail: '⚠️ 部分供应商更新失败：{errors}',
+    msg_mark_sent_fail: '⚠️ 更新失败：{err}',
+    report_empty: '（没有符合条件的 Claim 记录）',
+    report_gen_fail: '⚠️ 生成失败：{err}',
+    copy_success: '✓ 已复制',
+    copy_fail: '⚠️ 复制失败，请手动选择文字复制',
+    copy_email_success: '✓ 已复制（保留表格格式，可直接粘贴到 Gmail/Outlook）',
+
+    modal_title_default: '更新 Claim 状态',
+    modal_title_update: '更新状态：{id}',
+    label_status: '状态', label_resolved_date: '解决日期（状态为已解决时填写）',
+    label_remarks: '备注', btn_save: '保存', btn_saving: '保存中...',
+    msg_load_claims_fail: '⚠️ 加载失败：{err}',
+    err_no_data: '服务器没有返回资料——请重试',
+    msg_load_suppliers_fail: '⚠️ 供应商列表加载失败，请检查 CONFIG 设置：{err}',
+    msg_no_suppliers_found: '⚠️ Supplier List 里没有找到任何供应商——请先在表里加入至少一行供应商资料，才能记录损坏',
+
+    page4_h2: '📊 损坏分析',
+    label_date_range_simple: '日期范围（留空 = 不限制）',
+    chk_exclude_rejected: '分析中排除被拒绝的记录',
+    btn_analyze: '开始分析', btn_analyzing: '分析中...',
+    analysis_summary: '共 {items} 种商品出现损坏，累计 {qty} 件问题产品，来自 {claims} 项索赔',
+    th_rank: '#', th_product: '产品', th_sku: 'SKU', th_total_qty: '总数量', th_claims: '索赔次数', th_breakdown: '损坏类型分布',
+    btn_export_csv: '⬇️ 导出为 CSV',
+    analysis_gen_fail: '⚠️ 分析失败：{err}',
+
+    rt_title: '索赔汇总 Claim Report - {supplier}', rt_company: '公司：', rt_date: '日期：',
+    rt_product: '产品：', rt_qty: '数量：', rt_type: '类型：', rt_description: '描述：', rt_photos: '照片：', rt_videos: '视频：',
+    rt_summary: '共 {count} 项索赔，共计 {qty} 件问题产品。',
+    rt_footer: '请在 {days} 天内回复确认处理方案（补货 / 退款）。谢谢！',
+    email_greeting: '致：{supplier}',
+    email_intro: '您好，以下是我方近期收到的损坏 / 缺陷货物索赔明细，烦请协助处理补货或退款：',
+    email_table_headers: ['Claim ID', '产品', '数量', '类型', '描述', '照片', '视频'],
+    email_photo_label: '照片',
+    email_video_label: '视频'
+  }
+};
+
+let currentLang = 'en';
+try {
+  const saved = localStorage.getItem(LANG_STORAGE_KEY);
+  if (saved && TRANSLATIONS[saved]) currentLang = saved;
+} catch (e) { /* localStorage unavailable — fall back to English */ }
+
+// Looks up a translated string by key and substitutes {placeholders} with the given values
+function t(key, vars) {
+  const dict = TRANSLATIONS[currentLang] || TRANSLATIONS.en;
+  let str = (dict[key] !== undefined) ? dict[key] : (TRANSLATIONS.en[key] !== undefined ? TRANSLATIONS.en[key] : key);
+  if (vars) {
+    Object.keys(vars).forEach(function (k) {
+      str = str.split('{' + k + '}').join(vars[k]);
+    });
+  }
+  return str;
+}
+
+// Same lookup but for array-valued translations (e.g. table headers)
+function tArr(key) {
+  const dict = TRANSLATIONS[currentLang] || TRANSLATIONS.en;
+  return dict[key] || TRANSLATIONS.en[key] || [];
+}
+
+function defectTypeLabel(value) {
+  const map = { 'Broken': 'defect_broken', 'Defective': 'defect_defective', 'Wrong Item': 'defect_wrong', 'Missing Parts': 'defect_missing', 'Others': 'defect_others' };
+  return map[value] ? t(map[value]) : value;
+}
+
+// Applies translations to every element carrying data-i18n / data-i18n-placeholder
+function applyStaticTranslations() {
+  document.querySelectorAll('[data-i18n]').forEach(function (el) {
+    el.textContent = t(el.getAttribute('data-i18n'));
+  });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(function (el) {
+    el.placeholder = t(el.getAttribute('data-i18n-placeholder'));
+  });
+  document.getElementById('cleanupDesc').innerHTML = t('cleanup_desc_html', { days: CONFIG.CLEANUP_DAYS });
+}
+
+// Re-renders everything that depends on the language: static text, supplier dropdown
+// placeholders, the claims list (if loaded) and the last-generated report (if any)
+function refreshAllForLanguageChange() {
+  applyStaticTranslations();
+  populateSupplierDropdowns();
+  if (allClaimsCache.length > 0) renderClaimsOverview();
+  updateLastReportTip();
+  if (lastReportRows.length > 0) {
+    buildReports(lastReportRows, lastReportSupplier || t('opt_all_suppliers'));
+  }
+  if (lastAnalysis) renderAnalysis();
+  if (productLoadFailed) {
+    document.getElementById('productLoadMsg').textContent = t('msg_product_load_fail');
+  }
+}
+
+document.getElementById('langSwitcher').addEventListener('change', function () {
+  currentLang = this.value;
+  try { localStorage.setItem(LANG_STORAGE_KEY, currentLang); } catch (e) { /* ignore */ }
+  refreshAllForLanguageChange();
+});
+
+/****************************************************************
+ * ============ Global state & helper functions ============
+ ****************************************************************/
+let suppliersCache = [];
+let productsCache = [];
+let kitStructureCache = {}; // { kitSku: { kitName, kitSku, items: [{name, sku, qty}] } } — keyed by Kit SKU
+let photoList = []; // {data: base64, mimeType, previewUrl}
+let videoList = []; // {rawFile: File, mimeType, name} — kept as the original file; see submit flow for when/whether it gets compressed
+let driveAccessToken = null;
+let tokenClient = null;
+let allClaimsCache = [];
+
+function showMsg(elId, text, type) {
+  const el = document.getElementById(elId);
+  el.textContent = text;
+  el.className = 'msg show ' + (type || 'info');
+  // Scroll the message into view — on a long form (e.g. after adding several photos),
+  // an error at the top can go completely unnoticed if the person is scrolled down
+  // near the submit button, making it look like the button did nothing.
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  setTimeout(function () { el.classList.remove('show'); }, 5000);
+}
+
+// When this page is served directly by Apps Script (opened via the deployed Web App
+// URL), `google.script.run` is available and is used instead of fetch() — it's Apps
+// Script's dedicated client<->server channel and isn't affected by the third-party
+// cookie / tracking-protection issues that can block a plain fetch() call made from
+// inside Apps Script's sandboxed page. When this file is opened as a plain local
+// index.html instead, `google` doesn't exist, so it automatically falls back to fetch().
+const IS_EMBEDDED = (typeof google !== 'undefined' && google.script && google.script.run);
+
+// Maps an `action` string to the matching google.script.run-callable function name
+const GAS_RUN_FUNCTIONS = {
+  getSuppliers: 'apiGetSuppliers',
+  getProducts: 'apiGetProducts',
+  getKitStructure: 'apiGetKitStructure',
+  getClaims: 'apiGetClaims',
+  addClaim: 'apiAddClaim',
+  updateStatus: 'apiUpdateStatus',
+  markReported: 'apiMarkReported',
+  cleanupOldClaims: 'apiCleanupOldClaims'
+};
+
+function callGoogleScriptRun(action, params) {
+  return new Promise(function (resolve, reject) {
+    const fnName = GAS_RUN_FUNCTIONS[action];
+    if (!fnName) { reject(new Error('Unknown action: ' + action)); return; }
+    google.script.run
+      .withSuccessHandler(function (result) {
+        // Server functions now return JSON.stringify(...) rather than the raw
+        // object/array (see Code.gs for why) — parse it back here.
+        if (result === null || result === undefined) { resolve(null); return; }
+        try {
+          resolve(JSON.parse(result));
+        } catch (e) {
+          reject(new Error('Failed to parse server response: ' + e.message));
+        }
+      })
+      .withFailureHandler(function (err) { reject(new Error(err && err.message ? err.message : String(err))); })
+      [fnName](params);
+  });
+}
+
+function apiGet(action, params) {
+  params = params || {};
+  if (IS_EMBEDDED) {
+    return callGoogleScriptRun(action, params);
+  }
+  const qs = new URLSearchParams(Object.assign({ action: action }, params)).toString();
+  return fetch(CONFIG.WEB_APP_URL + '?' + qs).then(function (res) { return res.json(); });
+}
+
+// Note: for the fetch() fallback, body is sent as a plain string with no custom headers,
+// to avoid triggering a CORS preflight (OPTIONS) request
+function apiPost(payload) {
+  if (IS_EMBEDDED) {
+    return callGoogleScriptRun(payload.action, payload);
+  }
+  return fetch(CONFIG.WEB_APP_URL, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  }).then(function (res) { return res.json(); });
+}
+
+/****************************************************************
+ * ============ Tab switching ============
+ ****************************************************************/
+document.querySelectorAll('.tab-btn').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    document.querySelectorAll('.tab-btn').forEach(function (b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    document.querySelectorAll('.page').forEach(function (p) { p.style.display = 'none'; });
+    document.getElementById(btn.dataset.page).style.display = 'block';
+    if (btn.dataset.page === 'page2') loadClaimsOverview();
+  });
+});
+
+/****************************************************************
+ * ============ Load / render supplier dropdown lists ============
+ * The log-defect form no longer shows a supplier picker at all — it's a
+ * hidden field auto-filled with the first supplier on file. The Generate
+ * Report page still shows a real dropdown, since "All Suppliers" vs one
+ * specific supplier is a meaningful choice there.
+ ****************************************************************/
+function populateSupplierDropdowns() {
+  const opts = suppliersCache.map(function (s) {
+    return '<option value="' + escapeHtml(s['Supplier Name']) + '">' + escapeHtml(s['Supplier Name']) + '</option>';
+  }).join('');
+  const rSel = document.getElementById('r_supplier');
+  const rVal = rSel.value;
+  rSel.innerHTML = '<option value="">' + t('opt_all_suppliers') + '</option>' + opts;
+  rSel.value = rVal;
+
+  const submitBtn = document.getElementById('submitBtn');
+  const loadMsg = document.getElementById('supplierLoadMsg');
+
+  if (suppliersCache.length > 0) {
+    document.getElementById('f_supplier').value = suppliersCache[0]['Supplier Name'];
+    loadMsg.className = 'msg';
+    loadMsg.textContent = '';
+    submitBtn.disabled = false;
+  } else if (CONFIG.DEFAULT_SUPPLIER) {
+    // No Supplier List tab (or it's empty), but a fallback name is configured —
+    // use that instead of blocking the form on a sheet the person doesn't want to maintain.
+    document.getElementById('f_supplier').value = CONFIG.DEFAULT_SUPPLIER;
+    loadMsg.className = 'msg';
+    loadMsg.textContent = '';
+    submitBtn.disabled = false;
+  } else {
+    // No Supplier List AND no CONFIG.DEFAULT_SUPPLIER fallback — nothing to attach
+    // the claim to, so this needs to stay visible (not auto-hide like showMsg does)
+    // since it would otherwise silently block every submission.
+    loadMsg.textContent = t('msg_no_suppliers_found');
+    loadMsg.className = 'msg show error';
+    submitBtn.disabled = true;
+  }
+}
+
+function loadSuppliers() {
+  apiGet('getSuppliers').then(function (list) {
+    if (list.error) throw new Error(list.error);
+    suppliersCache = list;
+    populateSupplierDropdowns();
+  }).catch(function (err) {
+    const loadMsg = document.getElementById('supplierLoadMsg');
+    const submitBtn = document.getElementById('submitBtn');
+    if (CONFIG.DEFAULT_SUPPLIER) {
+      // The request itself failed (network/permissions/etc), but a fallback supplier
+      // name is configured, so the form can still be used without it.
+      document.getElementById('f_supplier').value = CONFIG.DEFAULT_SUPPLIER;
+      loadMsg.className = 'msg';
+      loadMsg.textContent = '';
+      submitBtn.disabled = false;
+    } else {
+      // Persistent (not auto-hiding) so it can't be missed or expire unnoticed —
+      // Submit is also disabled since there's no supplier to attach the claim to.
+      loadMsg.textContent = t('msg_load_suppliers_fail', { err: err.message });
+      loadMsg.className = 'msg show error';
+      submitBtn.disabled = true;
+    }
+    // Replace the stuck "Loading..." option on the report page's dropdown with a
+    // clear failure state instead of leaving it looking like it's still loading.
+    document.getElementById('r_supplier').innerHTML = '<option value="">' + t('opt_load_failed') + '</option>';
+  });
+}
+
+// Loads the Product List (Name + SKU) used to power the autocomplete on Page 1.
+// This is optional — if the "Product List" tab doesn't exist yet, getProducts()
+// on the backend just returns an empty array and manual typing still works fine.
+// We do surface a small note if the request itself failed, so it's clear why
+// suggestions aren't appearing rather than looking like a silent bug.
+let productLoadFailed = false;
+
+function loadProducts() {
+  apiGet('getProducts').then(function (list) {
+    if (list.error) throw new Error(list.error);
+    // Precompute lowercase name/SKU/combined text once here, instead of recalculating
+    // toLowerCase() on every product on every single keystroke while searching —
+    // with 1000+ products this is what actually made typing feel laggy.
+    productsCache = list.map(function (p) {
+      const name = String(p['Product Name'] || '');
+      const sku = String(p['SKU'] || '');
+      return {
+        name: name,
+        sku: sku,
+        nameLower: name.toLowerCase(),
+        skuLower: sku.toLowerCase(),
+        combinedLower: (name + ' ' + sku).toLowerCase()
+      };
+    });
+    productLoadFailed = false;
+    document.getElementById('productLoadMsg').className = 'msg';
+  }).catch(function () {
+    productsCache = [];
+    productLoadFailed = true;
+    const el = document.getElementById('productLoadMsg');
+    el.textContent = t('msg_product_load_fail');
+    el.className = 'msg show error';
+  });
+}
+
+// Loads the Kit Structure (which items make up each kit) from its own tab —
+// kept separate from Product List on purpose, since kit contents change over
+// time and this way updating that one tab is all that's ever needed.
+// This is optional too: if the tab doesn't exist, kit breakdowns just never show.
+function loadKits() {
+  apiGet('getKitStructure').then(function (rows) {
+    if (!rows) throw new Error(t('err_no_data'));
+    if (rows.error) throw new Error(rows.error);
+    const map = {};
+    rows.forEach(function (r) {
+      const kitSku = r['Kit SKU'];
+      if (!kitSku) return;
+      if (!map[kitSku]) map[kitSku] = { kitName: r['Kit Name'], kitSku: kitSku, items: [] };
+      map[kitSku].items.push({ name: r['Item Name'], sku: r['Item SKU'], qty: r['Quantity'] });
+    });
+    kitStructureCache = map;
+  }).catch(function () {
+    kitStructureCache = {};
+  });
+}
+
+// Checks whether the current SKU field value matches a known kit, and if so
+// shows its component breakdown right below the field. Called after picking a
+// suggestion AND on manual typing, so it works whichever way the SKU got there.
+function checkKitInfo() {
+  const sku = document.getElementById('f_sku').value.trim();
+  const box = document.getElementById('kitInfoBox');
+  const kit = kitStructureCache[sku];
+  if (!kit) {
+    box.className = 'msg';
+    box.innerHTML = '';
+    return;
+  }
+  const itemsHtml = kit.items.map(function (it) {
+    return escapeHtml(it.name) + (it.sku ? ' (SKU: ' + escapeHtml(it.sku) + ')' : '') + ' × ' + escapeHtml(it.qty);
+  }).join('<br>');
+  box.innerHTML = '<strong>' + t('kit_contains_label') + '</strong><br>' + itemsHtml;
+  box.className = 'msg show info';
+}
+
+document.getElementById('f_sku').addEventListener('input', checkKitInfo);
+
+const PRODUCT_SUGGESTION_LIMIT = 30;
+const SEARCH_DEBOUNCE_MS = 150;
+
+// Wires up search-as-you-type suggestions on a text input against productsCache.
+// Used for BOTH the Product Name field and the SKU field, since people search
+// by either one — matching checks name AND sku regardless of which box you're typing in.
+function setupProductAutocomplete(inputEl, suggestionEl) {
+  let debounceTimer = null;
+
+  inputEl.addEventListener('input', function () {
+    // Debounced: with 1000+ products, filtering+sorting on every single keystroke
+    // (especially while typing fast) is what made the list feel slow to appear.
+    // Waiting a beat after the person pauses typing makes it feel instant instead.
+    clearTimeout(debounceTimer);
+    const inputValue = this.value;
+    debounceTimer = setTimeout(function () {
+      runProductSearch(inputValue, suggestionEl);
+    }, SEARCH_DEBOUNCE_MS);
+  });
+
+  suggestionEl.addEventListener('click', function (e) {
+    const item = e.target.closest('.suggestion-item');
+    if (!item) return;
+    document.getElementById('f_product').value = item.dataset.name;
+    document.getElementById('f_sku').value = item.dataset.sku;
+    suggestionEl.classList.remove('show');
+    suggestionEl.innerHTML = '';
+    checkKitInfo(); // programmatic .value= doesn't fire 'input', so check explicitly
+  });
+}
+
+function runProductSearch(inputValue, suggestionEl) {
+  const raw = inputValue.trim().toLowerCase();
+  if (!raw || productsCache.length === 0) {
+    suggestionEl.classList.remove('show');
+    suggestionEl.innerHTML = '';
+    return;
+  }
+  // Split on whitespace so multi-keyword searches don't need to appear in order —
+  // e.g. "10m v1" should still match "LM/V1/2PIN/10M/" even though "V1" comes first there.
+  // Each keyword just has to appear somewhere in the (precomputed) combined name+SKU text.
+  const words = raw.split(/\s+/).filter(Boolean);
+
+  const allMatches = productsCache.filter(function (p) {
+    return words.every(function (w) { return p.combinedLower.indexOf(w) !== -1; });
+  });
+
+  // Rank so the most relevant results surface first: name or SKU starting with
+  // the full typed text first, then everything else — alphabetical within each group.
+  allMatches.sort(function (a, b) {
+    const rank = function (p) { return (p.nameLower.indexOf(raw) === 0 || p.skuLower.indexOf(raw) === 0) ? 0 : 1; };
+    const rankDiff = rank(a) - rank(b);
+    if (rankDiff !== 0) return rankDiff;
+    return a.nameLower.localeCompare(b.nameLower);
+  });
+
+  if (allMatches.length === 0) {
+    suggestionEl.classList.remove('show');
+    suggestionEl.innerHTML = '';
+    return;
+  }
+
+  const matches = allMatches.slice(0, PRODUCT_SUGGESTION_LIMIT);
+  let html = matches.map(function (p) {
+    return '<div class="suggestion-item" data-name="' + escapeHtml(p.name) + '" data-sku="' + escapeHtml(p.sku) + '">' +
+      escapeHtml(p.name) + '<div class="sku">SKU: ' + escapeHtml(p.sku) + '</div></div>';
+  }).join('');
+
+  if (allMatches.length > PRODUCT_SUGGESTION_LIMIT) {
+    html += '<div class="suggestion-more">' + t('more_matches_hint', { n: allMatches.length - PRODUCT_SUGGESTION_LIMIT }) + '</div>';
+  }
+
+  suggestionEl.innerHTML = html;
+  suggestionEl.classList.add('show');
+}
+
+const productInput = document.getElementById('f_product');
+const productSuggestions = document.getElementById('productSuggestions');
+const skuInput = document.getElementById('f_sku');
+const skuSuggestions = document.getElementById('skuSuggestions');
+
+setupProductAutocomplete(productInput, productSuggestions);
+setupProductAutocomplete(skuInput, skuSuggestions);
+
+document.addEventListener('click', function (e) {
+  if (!e.target.closest('.autocomplete-wrap')) {
+    productSuggestions.classList.remove('show');
+    skuSuggestions.classList.remove('show');
+  }
+});
+
+function escapeHtml(str) {
+  return String(str == null ? '' : str).replace(/[&<>"']/g, function (m) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+  });
+}
+
+// The "Date" field now comes from the server as a raw ISO string (e.g.
+// "2026-07-09T03:22:00.000Z") since Code.gs stores it as an actual Date
+// object rather than a pre-formatted string — this formats it into something
+// readable for display, using the browser's local time and the current
+// app language's locale.
+function formatClaimDate(isoString) {
+  if (!isoString) return '';
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return String(isoString);
+  return d.toLocaleString(LOCALE_MAP[currentLang] || 'en-GB', {
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false
+  });
+}
+
+// A claim counts as "resolved" (closed either way) if its status starts with "Resolved"
+function isResolvedStatus(status) {
+  return String(status || '').indexOf('Resolved') === 0;
+}
+
+// Maps a status string to its dot color class and translated display label
+function getStatusMeta(status) {
+  if (status === 'Resolved - Claim Successful') return { dotClass: 'dot-resolved', label: t('status_success') };
+  if (status === 'Resolved - Rejected') return { dotClass: 'dot-rejected', label: t('status_rejected') };
+  if (status === 'Pending Supplier Reply') return { dotClass: 'dot-pending', label: t('status_pending') };
+  return { dotClass: 'dot-open', label: t('status_open') };
+}
+
+/****************************************************************
+ * ============ Page 1: Photo upload (with compression) ============
+ ****************************************************************/
+document.getElementById('photoInput').addEventListener('change', function (e) {
+  const files = Array.from(e.target.files);
+  files.forEach(function (file) {
+    resizeImage(file, 2000, 0.9).then(function (dataUrl) {
+      photoList.push({ data: dataUrl, mimeType: 'image/jpeg' });
+      renderPhotoRow();
+    }).catch(function () {
+      showMsg('msg1', t('msg_photo_fail'), 'error');
+    });
+  });
+  e.target.value = ''; // allow re-selecting the same photo
+});
+
+function resizeImage(file, maxWidth, quality) {
+  return new Promise(function (resolve, reject) {
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      const img = new Image();
+      img.onload = function () {
+        let w = img.width, h = img.height;
+        if (w > maxWidth) {
+          h = Math.round(h * maxWidth / w);
+          w = maxWidth;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function renderPhotoRow() {
+  const row = document.getElementById('photoRow');
+  row.innerHTML = '';
+  photoList.forEach(function (p, idx) {
+    const thumb = document.createElement('div');
+    thumb.className = 'photo-thumb';
+    thumb.innerHTML = '<img src="' + p.data + '"><button class="remove" data-idx="' + idx + '">✕</button>';
+    row.appendChild(thumb);
+  });
+
+  const addBtn = document.createElement('div');
+  addBtn.className = 'upload-btn';
+  addBtn.textContent = '＋';
+  addBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    toggleAddMenu(addBtn, 'photo');
+  });
+  row.appendChild(addBtn);
+
+  row.querySelectorAll('.remove').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      photoList.splice(parseInt(btn.dataset.idx, 10), 1);
+      renderPhotoRow();
+    });
+  });
+}
+
+// The "+" button opens a small menu with two choices — take a new photo/video
+// or choose an existing one from the gallery — instead of two separate icon
+// buttons side by side. Both options route through the SAME native file input
+// (toggling the `capture` attribute right before triggering it) rather than
+// our own in-page camera — Apps Script serves this page inside a Google-
+// controlled iframe that doesn't grant camera permission to getUserMedia(),
+// so that approach isn't reliable here. The native file input's camera
+// capture doesn't depend on that permission delegation at all.
+function toggleAddMenu(anchorEl, kind) {
+  closeAddMenu();
+  const menu = document.createElement('div');
+  menu.className = 'add-menu';
+  const cameraLabel = (kind === 'photo' ? '📷 ' : '🎥 ') + t('camera_button_title');
+  menu.innerHTML =
+    '<div class="add-menu-item" data-action="camera">' + cameraLabel + '</div>' +
+    '<div class="add-menu-item" data-action="gallery">🖼️ ' + t('gallery_button_title') + '</div>';
+  anchorEl.appendChild(menu);
+
+  const inputId = kind === 'photo' ? 'photoInput' : 'videoInput';
+
+  menu.querySelector('[data-action="camera"]').addEventListener('click', function (e) {
+    e.stopPropagation();
+    closeAddMenu();
+    const input = document.getElementById(inputId);
+    input.setAttribute('capture', 'environment'); // jump straight to the camera
+    input.click();
+  });
+  menu.querySelector('[data-action="gallery"]').addEventListener('click', function (e) {
+    e.stopPropagation();
+    closeAddMenu();
+    const input = document.getElementById(inputId);
+    input.removeAttribute('capture'); // show the full picker (gallery + camera option)
+    input.click();
+  });
+}
+
+function closeAddMenu() {
+  document.querySelectorAll('.add-menu').forEach(function (m) { m.remove(); });
+}
+
+document.addEventListener('click', closeAddMenu);
+
+/****************************************************************
+ * ============ Page 1: Video upload ============
+ * Videos picked from the gallery (or recorded via the camera) are kept as the
+ * ORIGINAL file at this point — no compression happens here anymore.
+ * Compression only happens later, lazily, at submit time, and only if the
+ * direct-to-Drive upload path (see CONFIG.GOOGLE_CLIENT_ID) isn't available —
+ * that path uploads the original file at full quality, so there's no reason
+ * to degrade it upfront just in case.
+ ****************************************************************/
+document.getElementById('videoInput').addEventListener('change', function (e) {
+  const files = Array.from(e.target.files);
+  files.forEach(function (file) {
+    videoList.push({ rawFile: file, mimeType: file.type || 'video/mp4', name: file.name });
+    renderVideoRow();
+  });
+  e.target.value = ''; // allow re-selecting the same video
+});
+
+// Attempts to re-encode a video file at a lower bitrate using the browser's own
+// playback + capture pipeline. ALWAYS resolves (never rejects) — on any failure,
+// unsupported browser, or if the "compressed" result isn't actually smaller, it
+// resolves with the original file so upload can proceed either way.
+// Target: a 2-minute video should be small enough to upload within roughly a
+// minute on a typical mobile connection, while keeping text/labels in the shot
+// legible — that legibility requirement needs meaningfully more resolution and
+// bitrate than pure speed alone would use, so this is a deliberate middle
+// ground rather than the smallest possible file.
+const COMPRESS_MAX_DIMENSION = 720;
+const COMPRESS_VIDEO_BITRATE = 800000;  // 800 kbps
+const COMPRESS_AUDIO_BITRATE = 64000;   // 64 kbps
+const COMPRESS_FPS = 24;
+
+function compressVideoFile(file, onProgress) {
+  return new Promise(function (resolve) {
+    const probeEl = document.createElement('video');
+    const supported = !!(probeEl.captureStream || probeEl.mozCaptureStream) && !!window.MediaRecorder &&
+      !!(document.createElement('canvas').captureStream);
+    if (!supported) { resolve(file); return; }
+
+    let settled = false;
+    function finish(result) {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    }
+
+    let objectUrl;
+    let videoEl;
+    let drawIntervalId;
+    function cleanup() {
+      if (drawIntervalId) clearInterval(drawIntervalId);
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      if (videoEl && videoEl.parentNode) videoEl.parentNode.removeChild(videoEl);
+    }
+
+    try {
+      videoEl = document.createElement('video');
+      videoEl.muted = true;
+      videoEl.playsInline = true;
+      videoEl.style.position = 'fixed';
+      videoEl.style.left = '-9999px';
+      videoEl.style.width = '1px';
+      videoEl.style.height = '1px';
+      document.body.appendChild(videoEl);
+
+      objectUrl = URL.createObjectURL(file);
+      videoEl.src = objectUrl;
+
+      // Safety net: never let a stuck/hanging compression block the person from
+      // uploading — give up after 3 minutes and just use the original file instead.
+      const safetyTimeout = setTimeout(function () { cleanup(); finish(file); }, 180000);
+
+      videoEl.onerror = function () { clearTimeout(safetyTimeout); cleanup(); finish(file); };
+
+      videoEl.onloadedmetadata = function () {
+        try {
+          // Downscale to a small canvas — resolution is the single biggest lever
+          // for cutting file size, more effective than bitrate alone at keeping
+          // content still recognizable.
+          let w = videoEl.videoWidth, h = videoEl.videoHeight;
+          if (w >= h) {
+            if (w > COMPRESS_MAX_DIMENSION) { h = Math.round(h * COMPRESS_MAX_DIMENSION / w); w = COMPRESS_MAX_DIMENSION; }
+          } else {
+            if (h > COMPRESS_MAX_DIMENSION) { w = Math.round(w * COMPRESS_MAX_DIMENSION / h); h = COMPRESS_MAX_DIMENSION; }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          const canvasStream = canvas.captureStream(COMPRESS_FPS);
+
+          // Carry over the original audio track (if any) alongside the downscaled video
+          let combinedStream = canvasStream;
+          try {
+            const srcStream = videoEl.captureStream ? videoEl.captureStream() : videoEl.mozCaptureStream();
+            const audioTracks = srcStream.getAudioTracks();
+            if (audioTracks.length > 0) {
+              combinedStream = new MediaStream(canvasStream.getVideoTracks().concat(audioTracks));
+            }
+          } catch (audioErr) { /* no audio track available — proceed video-only */ }
+
+          let mimeType = '';
+          ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4'].some(function (candidate) {
+            if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(candidate)) {
+              mimeType = candidate;
+              return true;
+            }
+            return false;
+          });
+          const recorderOptions = { videoBitsPerSecond: COMPRESS_VIDEO_BITRATE, audioBitsPerSecond: COMPRESS_AUDIO_BITRATE };
+          if (mimeType) recorderOptions.mimeType = mimeType;
+
+          const recorder = new MediaRecorder(combinedStream, recorderOptions);
+          const chunks = [];
+          recorder.ondataavailable = function (e) { if (e.data && e.data.size > 0) chunks.push(e.data); };
+
+          recorder.onstop = function () {
+            clearTimeout(safetyTimeout);
+            cleanup();
+            if (chunks.length === 0) { finish(file); return; }
+            const blob = new Blob(chunks, { type: recorder.mimeType || 'video/webm' });
+            if (blob.size > 0 && blob.size < file.size) {
+              const ext = (blob.type || '').indexOf('mp4') !== -1 ? 'mp4' : 'webm';
+              const baseName = (file.name || 'video').replace(/\.[^.]+$/, '');
+              finish(new File([blob], baseName + '_compressed.' + ext, { type: blob.type }));
+            } else {
+              finish(file); // compression didn't actually help — keep the original
+            }
+          };
+          recorder.onerror = function () { clearTimeout(safetyTimeout); cleanup(); finish(file); };
+
+          // Continuously redraw the source video onto the smaller canvas while it plays —
+          // this is what actually produces the downscaled frames MediaRecorder captures.
+          drawIntervalId = setInterval(function () {
+            if (!videoEl.paused && !videoEl.ended) {
+              ctx.drawImage(videoEl, 0, 0, w, h);
+            }
+          }, 1000 / COMPRESS_FPS);
+
+          videoEl.onended = function () {
+            if (recorder.state !== 'inactive') recorder.stop();
+          };
+          videoEl.ontimeupdate = function () {
+            if (onProgress && videoEl.duration) onProgress(videoEl.currentTime, videoEl.duration);
+          };
+
+          videoEl.play().then(function () {
+            recorder.start();
+          }).catch(function () { clearTimeout(safetyTimeout); cleanup(); finish(file); });
+        } catch (e) {
+          clearTimeout(safetyTimeout);
+          cleanup();
+          finish(file);
+        }
+      };
+    } catch (e) {
+      cleanup();
+      finish(file);
+    }
+  });
+}
+
+function readFileAsBase64(file) {
+  return new Promise(function (resolve, reject) {
+    const reader = new FileReader();
+    reader.onload = function (e) { resolve(e.target.result); };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function renderVideoRow() {
+  const row = document.getElementById('videoRow');
+  row.innerHTML = '';
+  videoList.forEach(function (v, idx) {
+    const thumb = document.createElement('div');
+    thumb.className = 'video-thumb';
+    thumb.innerHTML = '<div class="icon">🎥</div><div class="fname">' + escapeHtml(v.name || 'video') + '</div>' +
+      '<button class="remove" data-idx="' + idx + '">✕</button>';
+    row.appendChild(thumb);
+  });
+
+  const addBtn = document.createElement('div');
+  addBtn.className = 'upload-btn';
+  addBtn.textContent = '＋';
+  addBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    toggleAddMenu(addBtn, 'video');
+  });
+  row.appendChild(addBtn);
+
+  row.querySelectorAll('.remove').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      videoList.splice(parseInt(btn.dataset.idx, 10), 1);
+      renderVideoRow();
+    });
+  });
+}
+
+/****************************************************************
+ * ============ Google Drive direct-upload (optional, via OAuth) ============
+ * Entirely inert if CONFIG.GOOGLE_CLIENT_ID is left blank — everything falls
+ * back to the standard base64-via-Apps-Script path automatically. See the
+ * CONFIG comment for setup steps (Google Cloud Console OAuth Client ID).
+ ****************************************************************/
+const DRIVE_UPLOAD_TIMEOUT_MS = 90000; // videos aren't compressed on this path, so give it more room than a typical request
+
+function initGoogleAuth() {
+  if (!CONFIG.GOOGLE_CLIENT_ID) return; // feature not configured — stays fully hidden
+  if (!window.google || !google.accounts || !google.accounts.oauth2) {
+    setTimeout(initGoogleAuth, 500); // GIS script may still be loading
+    return;
+  }
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: CONFIG.GOOGLE_CLIENT_ID,
+    scope: 'https://www.googleapis.com/auth/drive.file',
+    callback: function (response) {
+      if (response && response.access_token) {
+        driveAccessToken = response.access_token;
+        updateDriveConnectUI();
+      }
+    }
+  });
+  document.getElementById('driveConnectBox').style.display = 'block';
+  updateDriveConnectUI();
+}
+
+function updateDriveConnectUI() {
+  const statusEl = document.getElementById('driveConnectStatus');
+  const btnEl = document.getElementById('driveConnectBtn');
+  if (driveAccessToken) {
+    statusEl.textContent = t('drive_connected');
+    btnEl.textContent = t('drive_reconnect');
+  } else {
+    statusEl.textContent = t('drive_not_connected');
+    btnEl.textContent = t('drive_connect');
+  }
+}
+
+document.getElementById('driveConnectBtn').addEventListener('click', function () {
+  if (!tokenClient) return;
+  tokenClient.requestAccessToken({ prompt: driveAccessToken ? '' : 'consent' });
+});
+
+function withTimeout(promise, ms, message) {
+  return new Promise(function (resolve, reject) {
+    const timer = setTimeout(function () { reject(new Error(message || 'Timed out')); }, ms);
+    promise.then(function (result) {
+      clearTimeout(timer);
+      resolve(result);
+    }, function (err) {
+      clearTimeout(timer);
+      reject(err);
+    });
+  });
+}
+
+function driveApiFetch(url, options) {
+  options = options || {};
+  options.headers = Object.assign({}, options.headers, { 'Authorization': 'Bearer ' + driveAccessToken });
+  return withTimeout(fetch(url, options).then(function (res) {
+    if (!res.ok) return res.text().then(function (t) { throw new Error('Drive API HTTP ' + res.status + ': ' + t); });
+    return res.json();
+  }), DRIVE_UPLOAD_TIMEOUT_MS, 'Drive API request timed out');
+}
+
+// Gets (or creates) a subfolder named after the Claim ID inside CONFIG.DRIVE_FOLDER_ID —
+// mirrors what Code.gs's getOrCreateClaimFolder_ does for the legacy path.
+function getOrCreateDriveFolder(claimId) {
+  const safeName = claimId.replace(/'/g, "\\'");
+  const q = encodeURIComponent("name='" + safeName + "' and '" + CONFIG.DRIVE_FOLDER_ID + "' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false");
+  return driveApiFetch('https://www.googleapis.com/drive/v3/files?q=' + q + '&fields=files(id)', { method: 'GET' })
+    .then(function (data) {
+      if (data.files && data.files.length > 0) return data.files[0].id;
+      return driveApiFetch('https://www.googleapis.com/drive/v3/files', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: claimId, mimeType: 'application/vnd.google-apps.folder', parents: [CONFIG.DRIVE_FOLDER_ID] })
+      }).then(function (folder) { return folder.id; });
+    });
+}
+
+// Uploads a Blob/File directly to Drive (real binary, no base64) and makes it
+// link-shareable, returning its view URL.
+function uploadBlobToDrive(blob, filename, folderId) {
+  const metadata = { name: filename, parents: [folderId] };
+  const form = new FormData();
+  form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+  form.append('file', blob);
+  return driveApiFetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
+    method: 'POST',
+    body: form
+  }).then(function (data) {
+    return driveApiFetch('https://www.googleapis.com/drive/v3/files/' + data.id + '/permissions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: 'reader', type: 'anyone' })
+    }).then(function () {
+      return 'https://drive.google.com/file/d/' + data.id + '/view';
+    });
+  });
+}
+
+// Converts a base64 data URL (what photoList already stores, for thumbnail
+// previews) back into a real binary Blob for the direct-upload path.
+function dataUrlToBlob(dataUrl) {
+  const parts = String(dataUrl).split(',');
+  const mimeMatch = parts[0].match(/:(.*?);/);
+  const mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+  const binary = atob(parts[1]);
+  const len = binary.length;
+  const array = new Uint8Array(len);
+  for (let i = 0; i < len; i++) array[i] = binary.charCodeAt(i);
+  return new Blob([array], { type: mime });
+}
+
+function extForVideoMimeClient(mimeType) {
+  const map = { 'video/mp4': 'mp4', 'video/quicktime': 'mov', 'video/webm': 'webm', 'video/3gpp': '3gp', 'video/x-matroska': 'mkv' };
+  return map[mimeType] || 'mp4';
+}
+
+/****************************************************************
+ * ============ Page 1: Submit form ============
+ ****************************************************************/
+document.getElementById('submitBtn').addEventListener('click', function () {
+  const supplier = document.getElementById('f_supplier').value;
+  const productName = document.getElementById('f_product').value.trim();
+  const sku = document.getElementById('f_sku').value.trim();
+  const qty = document.getElementById('f_qty').value;
+  const defectType = document.getElementById('f_type').value;
+  const description = document.getElementById('f_desc').value.trim();
+
+  if (!supplier || !productName || !qty) {
+    showMsg('msg1', t('msg_fill_required'), 'error');
+    return;
+  }
+
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  const submitStartTime = Date.now();
+  btn.textContent = t('btn_submitting');
+  // Videos in particular can take a while to upload — showing elapsed seconds
+  // makes it clear the button is actively working rather than stuck/frozen.
+  const submitTimerInterval = setInterval(function () {
+    const secs = Math.floor((Date.now() - submitStartTime) / 1000);
+    btn.textContent = t('btn_submitting') + ' (' + secs + 's)';
+  }, 1000);
+
+  const claimData = {
+    supplier: supplier, productName: productName, sku: sku, qty: qty,
+    defectType: defectType, description: description
+  };
+
+  submitClaim(claimData).then(function (res) {
+    showMsg('msg1', t('msg_submit_success', { id: res.claimId, count: res.photoCount, videoCount: res.videoCount }), 'success');
+    // Clear the form (supplier stays as-is — it's a hidden field auto-filled from Supplier List)
+    document.getElementById('f_product').value = '';
+    document.getElementById('f_sku').value = '';
+    document.getElementById('f_qty').value = '';
+    document.getElementById('f_desc').value = '';
+    photoList = [];
+    videoList = [];
+    renderPhotoRow();
+    renderVideoRow();
+    productSuggestions.classList.remove('show');
+    productSuggestions.innerHTML = '';
+    skuSuggestions.classList.remove('show');
+    skuSuggestions.innerHTML = '';
+    document.getElementById('kitInfoBox').className = 'msg';
+    document.getElementById('kitInfoBox').innerHTML = '';
+  }).catch(function (err) {
+    showMsg('msg1', t('msg_submit_fail', { err: err.message }), 'error');
+  }).finally(function () {
+    clearInterval(submitTimerInterval);
+    document.getElementById('videoCompressMsg').className = 'msg';
+    document.getElementById('videoCompressMsg').textContent = '';
+    btn.disabled = false;
+    btn.textContent = t('btn_submit');
+  });
+});
+
+// If Google Drive is connected and there's media to send, tries the fast
+// direct-to-Drive path first (full quality, no base64) — falls back to the
+// standard base64-via-Apps-Script path (with video compression) if that
+// fails for any reason, so a claim never fails to submit just because the
+// speed/quality optimization didn't work on this particular device/network.
+function submitClaim(claimData) {
+  const hasMedia = photoList.length > 0 || videoList.length > 0;
+  const canDirectUpload = !!(CONFIG.GOOGLE_CLIENT_ID && driveAccessToken) && hasMedia;
+
+  if (!canDirectUpload) {
+    return submitLegacy(claimData);
+  }
+  return submitFast(claimData).catch(function (err) {
+    console.error('Direct Drive upload failed, falling back to the standard method:', err);
+    return submitLegacy(claimData);
+  });
+}
+
+// Fast path: reserve a Claim ID, upload each photo/video straight to Drive
+// (in parallel, at full original quality — no compression needed since this
+// isn't going through the slower base64 route), then finalize the row.
+function submitFast(claimData) {
+  return apiPost({ action: 'reserveClaimId' }).then(function (res) {
+    if (res.error) throw new Error(res.error);
+    const claimId = res.claimId;
+
+    return getOrCreateDriveFolder(claimId).then(function (folderId) {
+      const photoUploads = photoList.map(function (p, idx) {
+        return uploadBlobToDrive(dataUrlToBlob(p.data), claimId + '_' + (idx + 1) + '.jpg', folderId);
+      });
+      const videoUploads = videoList.map(function (v, idx) {
+        return uploadBlobToDrive(v.rawFile, claimId + '_video' + (idx + 1) + '.' + extForVideoMimeClient(v.mimeType), folderId);
+      });
+      const allUploads = photoUploads.concat(videoUploads);
+
+      return Promise.all(allUploads.map(function (p) {
+        return p.then(function (url) { return { ok: true, url: url }; }).catch(function (err) { return { ok: false, err: err }; });
+      })).then(function (results) {
+        // If every single upload failed, treat this as a full fast-path
+        // failure (triggers the fallback) rather than finalizing a claim
+        // with zero media attached.
+        if (allUploads.length > 0 && results.every(function (r) { return !r.ok; })) {
+          throw new Error('All direct uploads failed');
+        }
+
+        const photoUrls = results.slice(0, photoUploads.length).filter(function (r) { return r.ok; }).map(function (r) { return r.url; });
+        const videoUrls = results.slice(photoUploads.length).filter(function (r) { return r.ok; }).map(function (r) { return r.url; });
+
+        return apiPost(Object.assign(
+          { action: 'finalizeClaim', claimId: claimId, photoUrls: photoUrls, videoUrls: videoUrls },
+          claimData
+        )).then(function (finalizeRes) {
+          if (finalizeRes.error) throw new Error(finalizeRes.error);
+          return finalizeRes;
+        });
+      });
+    });
+  });
+}
+
+// Standard path: everything goes through Apps Script as base64 in one bundled
+// call. Videos are compressed here (lazily, only now that we know we actually
+// need it) to keep that bundled call a reasonable size.
+function submitLegacy(claimData) {
+  const msgEl = document.getElementById('videoCompressMsg');
+
+  const videoPayloadPromises = videoList.map(function (v) {
+    if (v.data) return Promise.resolve({ data: v.data, mimeType: v.mimeType, name: v.name });
+    msgEl.textContent = t('msg_compressing_video');
+    msgEl.className = 'msg show info';
+    return compressVideoFile(v.rawFile, function (currentTime, duration) {
+      if (duration) {
+        const pct = Math.min(100, Math.round((currentTime / duration) * 100));
+        msgEl.textContent = t('msg_compressing_video') + ' ' + pct + '%';
+      }
+    }).then(function (finalFile) {
+      return readFileAsBase64(finalFile).then(function (dataUrl) {
+        return { data: dataUrl, mimeType: finalFile.type || v.mimeType, name: finalFile.name };
+      });
+    });
+  });
+
+  return Promise.all(videoPayloadPromises).then(function (videoPayload) {
+    msgEl.className = 'msg';
+    msgEl.textContent = '';
+    return apiPost(Object.assign(
+      { action: 'addClaim', photos: photoList, videos: videoPayload },
+      claimData
+    ));
+  }).then(function (res) {
+    if (res.error) throw new Error(res.error);
+    return res;
+  });
+}
+
+
+
+/****************************************************************
+ * ============ Page 2: Claim status overview ============
+ ****************************************************************/
+function loadClaimsOverview() {
+  const listEl = document.getElementById('claimsList');
+  listEl.innerHTML = '<div class="loading">' + t('opt_loading') + '</div>';
+  apiGet('getClaims').then(function (rows) {
+    if (!rows) throw new Error(t('err_no_data'));
+    if (rows.error) throw new Error(rows.error);
+    allClaimsCache = rows;
+    renderClaimsOverview();
+  }).catch(function (err) {
+    listEl.innerHTML = '<div class="empty-tip">' + t('msg_load_claims_fail', { err: err.message }) + '</div>';
+  });
+}
+
+document.getElementById('refreshBtn').addEventListener('click', loadClaimsOverview);
+document.getElementById('showResolved').addEventListener('change', renderClaimsOverview);
+
+// The cleanup button stays disabled until the confirmation checkbox is ticked —
+// this avoids native confirm()/alert() dialogs while still requiring an explicit opt-in
+// before anything gets permanently deleted.
+document.getElementById('cleanupConfirm').addEventListener('change', function () {
+  document.getElementById('cleanupBtn').disabled = !this.checked;
+});
+
+document.getElementById('cleanupBtn').addEventListener('click', function () {
+  const btn = this;
+  const msgEl = document.getElementById('cleanupMsg');
+  btn.disabled = true;
+  btn.textContent = t('btn_cleanup_running');
+  msgEl.className = 'msg';
+
+  apiPost({ action: 'cleanupOldClaims' }).then(function (res) {
+    if (res.error) throw new Error(res.error);
+    msgEl.className = 'msg show success';
+    msgEl.textContent = t('cleanup_success', { rows: res.deletedRows, photos: res.deletedPhotos, videos: res.deletedVideos }) +
+      (res.errors && res.errors.length ? t('cleanup_partial', { n: res.errors.length }) : '');
+    document.getElementById('cleanupConfirm').checked = false;
+    loadClaimsOverview();
+  }).catch(function (err) {
+    msgEl.className = 'msg show error';
+    msgEl.textContent = t('cleanup_fail', { err: err.message });
+  }).finally(function () {
+    btn.disabled = true; // re-lock until the checkbox is ticked again
+    btn.textContent = t('btn_cleanup');
+  });
+});
+
+function renderClaimsOverview() {
+  const showResolved = document.getElementById('showResolved').checked;
+  const listEl = document.getElementById('claimsList');
+
+  let rows = allClaimsCache;
+  if (!showResolved) {
+    rows = rows.filter(function (r) { return !isResolvedStatus(r['Status']); });
+  }
+
+  if (rows.length === 0) {
+    listEl.innerHTML = '<div class="empty-tip">' + t('empty_no_claims') + '</div>';
+    return;
+  }
+
+  // Group by Supplier
+  const groups = {};
+  rows.forEach(function (r) {
+    const key = r['Supplier'] || t('no_supplier_label');
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(r);
+  });
+
+  let html = '';
+  Object.keys(groups).sort().forEach(function (supplier) {
+    html += '<div class="supplier-group"><h3>' + escapeHtml(supplier) + ' (' + groups[supplier].length + ')</h3>';
+    groups[supplier].forEach(function (r) {
+      const meta = getStatusMeta(r['Status']);
+      html += '<div class="claim-item" data-rowindex="' + r.rowIndex + '">' +
+        '<div class="top-row"><span class="claim-id">' + escapeHtml(r['Claim ID']) + '</span><span>' + meta.label + '</span></div>' +
+        '<div class="prod">' + escapeHtml(r['Product Name']) + (r['SKU'] ? ' (SKU: ' + escapeHtml(r['SKU']) + ')' : '') + '</div>' +
+        '<div class="meta">' + t('meta_qty') + ': ' + escapeHtml(r['Qty Defective']) + ' ｜ ' + t('meta_type') + ': ' + escapeHtml(defectTypeLabel(r['Defect Type'])) + ' ｜ ' + escapeHtml(formatClaimDate(r['Date'])) + '</div>' +
+        '</div>';
+    });
+    html += '</div>';
+  });
+  listEl.innerHTML = html;
+
+  listEl.querySelectorAll('.claim-item').forEach(function (item) {
+    item.addEventListener('click', function () {
+      openStatusModal(parseInt(item.dataset.rowindex, 10));
+    });
+  });
+}
+
+/****************************************************************
+ * ============ Status update modal ============
+ ****************************************************************/
+let currentRowIndex = null;
+
+function openStatusModal(rowIndex) {
+  const record = allClaimsCache.find(function (r) { return r.rowIndex === rowIndex; });
+  if (!record) return;
+  currentRowIndex = rowIndex;
+  document.getElementById('modalTitle').textContent = t('modal_title_update', { id: record['Claim ID'] });
+  document.getElementById('m_status').value = record['Status'] || 'Open';
+  document.getElementById('m_resolvedDate').value = record['Resolved Date'] || '';
+  document.getElementById('m_remarks').value = record['Remarks'] || '';
+  document.getElementById('modalOverlay').classList.add('show');
+}
+
+document.getElementById('modalClose').addEventListener('click', function () {
+  document.getElementById('modalOverlay').classList.remove('show');
+});
+
+document.getElementById('m_saveBtn').addEventListener('click', function () {
+  if (!currentRowIndex) return;
+  const status = document.getElementById('m_status').value;
+  let resolvedDate = document.getElementById('m_resolvedDate').value;
+  if (isResolvedStatus(status) && !resolvedDate) {
+    resolvedDate = new Date().toISOString().slice(0, 10);
+  }
+  const remarks = document.getElementById('m_remarks').value;
+
+  const btn = document.getElementById('m_saveBtn');
+  btn.disabled = true;
+  btn.textContent = t('btn_saving');
+
+  apiPost({
+    action: 'updateStatus',
+    rowIndex: currentRowIndex,
+    status: status,
+    resolvedDate: resolvedDate,
+    remarks: remarks
+  }).then(function (res) {
+    if (res.error) throw new Error(res.error);
+    document.getElementById('modalOverlay').classList.remove('show');
+    loadClaimsOverview();
+  }).catch(function (err) {
+    alert_replacement(err.message);
+  }).finally(function () {
+    btn.disabled = false;
+    btn.textContent = t('btn_save');
+  });
+});
+
+// In-page message instead of alert() (used for errors inside the modal)
+function alert_replacement(text) {
+  document.getElementById('modalTitle').textContent = '⚠️ ' + text;
+}
+
+/****************************************************************
+ * ============ Page 3: Generate Claim Report ============
+ ****************************************************************/
+let lastReportRows = [];
+let lastReportSupplier = '';
+let lastAnalysis = null; // { list: [...], totalClaims: N } — cached so language switches can re-render without refetching
+
+// When the supplier dropdown changes, auto-fill the date after that supplier's last "sent" date, so each supplier accumulates on its own schedule
+document.getElementById('r_supplier').addEventListener('change', function () {
+  updateLastReportTip();
+});
+
+function updateLastReportTip() {
+  const supplier = document.getElementById('r_supplier').value;
+  const tip = document.getElementById('lastReportTip');
+  if (!supplier) {
+    tip.style.display = 'none';
+    document.getElementById('r_dateFrom').value = '';
+    return;
+  }
+  const rec = suppliersCache.find(function (s) { return s['Supplier Name'] === supplier; });
+  const lastDate = rec && rec['Last Report Date'] ? String(rec['Last Report Date']).slice(0, 10) : '';
+  if (lastDate) {
+    tip.textContent = t('tip_last_report', { date: lastDate });
+    tip.style.display = 'block';
+    document.getElementById('r_dateFrom').value = addDays(lastDate, 1);
+  } else {
+    tip.textContent = t('tip_no_last_report');
+    tip.style.display = 'block';
+    document.getElementById('r_dateFrom').value = '';
+  }
+}
+
+function addDays(dateStr, n) {
+  const d = new Date(dateStr);
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+document.getElementById('genBtn').addEventListener('click', function () {
+  const supplier = document.getElementById('r_supplier').value;
+  const onlyUnresolved = document.getElementById('r_onlyUnresolved').checked;
+  const dateFrom = document.getElementById('r_dateFrom').value;
+  const dateTo = document.getElementById('r_dateTo').value;
+
+  const params = {};
+  if (supplier) params.supplier = supplier;
+  if (dateFrom) params.dateFrom = dateFrom;
+  if (dateTo) params.dateTo = dateTo;
+
+  const btn = document.getElementById('genBtn');
+  btn.disabled = true;
+  btn.textContent = t('btn_generating');
+  document.getElementById('markSentMsg').className = 'msg';
+
+  apiGet('getClaims', params).then(function (rows) {
+    if (!rows) throw new Error(t('err_no_data'));
+    if (rows.error) throw new Error(rows.error);
+    let filtered = rows;
+    if (onlyUnresolved) {
+      filtered = filtered.filter(function (r) { return !isResolvedStatus(r['Status']); });
+    }
+    if (filtered.length === 0) {
+      document.getElementById('reportResult').style.display = 'none';
+      showReportEmptyTip();
+      return;
+    }
+    lastReportRows = filtered;
+    lastReportSupplier = supplier;
+    buildReports(filtered, supplier || t('opt_all_suppliers'));
+    document.getElementById('reportResult').style.display = 'block';
+  }).catch(function (err) {
+    document.getElementById('wechatBox').textContent = t('report_gen_fail', { err: err.message });
+    document.getElementById('reportResult').style.display = 'block';
+  }).finally(function () {
+    btn.disabled = false;
+    btn.textContent = t('btn_generate');
+  });
+});
+
+function showReportEmptyTip() {
+  const el = document.getElementById('reportResult');
+  el.style.display = 'block';
+  document.getElementById('wechatBox').textContent = t('report_empty');
+  document.getElementById('emailBox').textContent = '';
+}
+
+function buildReports(rows, supplierLabel) {
+  const today = new Date().toLocaleDateString(LOCALE_MAP[currentLang] || 'en-GB');
+  let totalQty = 0;
+
+  // ---------- WeChat version (plain text — avoids markdown symbols WeChat doesn't render) ----------
+  let wa = '【' + t('rt_title', { supplier: supplierLabel }) + '】\n';
+  wa += t('rt_company') + CONFIG.COMPANY_NAME + '\n';
+  wa += t('rt_date') + today + '\n\n';
+
+  rows.forEach(function (r, idx) {
+    const qty = parseInt(r['Qty Defective'], 10) || 0;
+    totalQty += qty;
+    wa += (idx + 1) + '. ' + r['Claim ID'] + '\n';
+    wa += '   ' + t('rt_product') + r['Product Name'] + (r['SKU'] ? ' (SKU: ' + r['SKU'] + ')' : '') + '\n';
+    wa += '   ' + t('rt_qty') + qty + '｜' + t('rt_type') + defectTypeLabel(r['Defect Type']) + '\n';
+    if (r['Description']) wa += '   ' + t('rt_description') + r['Description'] + '\n';
+    if (r['Photo URLs']) {
+      const links = String(r['Photo URLs']).split('\n').filter(Boolean);
+      wa += '   ' + t('rt_photos') + links.join(' , ') + '\n';
+    }
+    if (r['Video URLs']) {
+      const vlinks = String(r['Video URLs']).split('\n').filter(Boolean);
+      wa += '   ' + t('rt_videos') + vlinks.join(' , ') + '\n';
+    }
+    wa += '\n';
+  });
+
+  wa += t('rt_summary', { count: rows.length, qty: totalQty }) + '\n';
+  wa += t('rt_footer', { days: CONFIG.REPLY_DAYS });
+
+  document.getElementById('wechatBox').textContent = wa;
+
+  // ---------- Email version (with table, HTML) ----------
+  const headers = tArr('email_table_headers');
+  const photoLabel = t('email_photo_label');
+  const videoLabel = t('email_video_label');
+  let tableRows = rows.map(function (r) {
+    const links = r['Photo URLs'] ? String(r['Photo URLs']).split('\n').filter(Boolean).map(function (u, i) {
+      return '<a href="' + u + '" target="_blank">' + photoLabel + (i + 1) + '</a>';
+    }).join(' ') : '-';
+    const vlinks = r['Video URLs'] ? String(r['Video URLs']).split('\n').filter(Boolean).map(function (u, i) {
+      return '<a href="' + u + '" target="_blank">' + videoLabel + (i + 1) + '</a>';
+    }).join(' ') : '-';
+    return '<tr>' +
+      '<td>' + escapeHtml(r['Claim ID']) + '</td>' +
+      '<td>' + escapeHtml(r['Product Name']) + (r['SKU'] ? '<br><small>SKU: ' + escapeHtml(r['SKU']) + '</small>' : '') + '</td>' +
+      '<td>' + escapeHtml(r['Qty Defective']) + '</td>' +
+      '<td>' + escapeHtml(defectTypeLabel(r['Defect Type'])) + '</td>' +
+      '<td>' + escapeHtml(r['Description'] || '-') + '</td>' +
+      '<td>' + links + '</td>' +
+      '<td>' + vlinks + '</td>' +
+      '</tr>';
+  }).join('');
+
+  const emailHtml =
+    '<p><strong>' + escapeHtml(CONFIG.COMPANY_NAME) + '</strong>' + (CONFIG.COMPANY_CONTACT ? '<br>' + escapeHtml(CONFIG.COMPANY_CONTACT) : '') + '</p>' +
+    '<p>' + escapeHtml(t('email_greeting', { supplier: supplierLabel })) + '</p>' +
+    '<p>' + escapeHtml(t('email_intro')) + '</p>' +
+    '<table><thead><tr>' + headers.map(function (h) { return '<th>' + escapeHtml(h) + '</th>'; }).join('') + '</tr></thead>' +
+    '<tbody>' + tableRows + '</tbody></table>' +
+    '<p>' + escapeHtml(t('rt_summary', { count: rows.length, qty: totalQty })) + '</p>' +
+    '<p>' + escapeHtml(t('rt_footer', { days: CONFIG.REPLY_DAYS })) + '</p>';
+
+  document.getElementById('emailBox').innerHTML = emailHtml;
+}
+
+/****************************************************************
+ * ============ Copy buttons ============
+ ****************************************************************/
+document.getElementById('copyWechatBtn').addEventListener('click', function () {
+  const text = document.getElementById('wechatBox').textContent;
+  copyPlainText(text, 'copyWechatBtn');
+});
+
+document.getElementById('copyEmailBtn').addEventListener('click', function () {
+  const box = document.getElementById('emailBox');
+  copyRichText(box.innerHTML, box.textContent, 'copyEmailBtn');
+});
+
+// "Sent to supplier" -> updates the cutoff date (Last Report Date) for that supplier
+// (or for every supplier included in this report, if "All Suppliers" was selected).
+// This only runs when clicked — nothing is sent or accumulated automatically.
+document.getElementById('markSentBtn').addEventListener('click', function () {
+  if (lastReportRows.length === 0) return;
+  const today = new Date().toISOString().slice(0, 10);
+
+  const targets = lastReportSupplier
+    ? [lastReportSupplier]
+    : Array.from(new Set(lastReportRows.map(function (r) { return r['Supplier']; }).filter(Boolean)));
+
+  const btn = document.getElementById('markSentBtn');
+  btn.disabled = true;
+  btn.textContent = t('btn_mark_sent_updating');
+
+  Promise.all(targets.map(function (supplier) {
+    return apiPost({ action: 'markReported', supplier: supplier, date: today });
+  })).then(function (results) {
+    const failed = results.filter(function (r) { return r.error; });
+    targets.forEach(function (supplier) {
+      const rec = suppliersCache.find(function (s) { return s['Supplier Name'] === supplier; });
+      if (rec) rec['Last Report Date'] = today;
+    });
+    if (failed.length > 0) {
+      document.getElementById('markSentMsg').className = 'msg show error';
+      document.getElementById('markSentMsg').textContent = t('msg_mark_sent_partial_fail', { errors: failed.map(function (f) { return f.error; }).join('; ') });
+    } else {
+      document.getElementById('markSentMsg').className = 'msg show success';
+      document.getElementById('markSentMsg').textContent = t('msg_mark_sent_success', { suppliers: targets.join(', '), date: today });
+    }
+    updateLastReportTip();
+  }).catch(function (err) {
+    document.getElementById('markSentMsg').className = 'msg show error';
+    document.getElementById('markSentMsg').textContent = t('msg_mark_sent_fail', { err: err.message });
+  }).finally(function () {
+    btn.disabled = false;
+    btn.textContent = t('btn_mark_sent');
+  });
+});
+
+function copyPlainText(text, btnId) {
+  navigator.clipboard.writeText(text).then(function () {
+    flashBtn(btnId, t('copy_success'));
+  }).catch(function () {
+    flashBtn(btnId, t('copy_fail'));
+  });
+}
+
+function copyRichText(html, plain, btnId) {
+  if (navigator.clipboard && window.ClipboardItem) {
+    const item = new ClipboardItem({
+      'text/html': new Blob([html], { type: 'text/html' }),
+      'text/plain': new Blob([plain], { type: 'text/plain' })
+    });
+    navigator.clipboard.write([item]).then(function () {
+      flashBtn(btnId, t('copy_email_success'));
+    }).catch(function () {
+      copyPlainText(plain, btnId);
+    });
+  } else {
+    copyPlainText(plain, btnId);
+  }
+}
+
+function flashBtn(btnId, text) {
+  const btn = document.getElementById(btnId);
+  const original = btn.textContent;
+  btn.textContent = text;
+  setTimeout(function () { btn.textContent = original; }, 2500);
+}
+
+/****************************************************************
+ * ============ Page 4: Damage Analysis ============
+ * Groups every claim by Product Name + SKU and totals up how many units of
+ * each item were defective, how many separate claims involved it, and a
+ * breakdown by defect type — useful now that there's just the one supplier
+ * and the interesting question is "what's breaking, and how often".
+ ****************************************************************/
+document.getElementById('analyzeBtn').addEventListener('click', function () {
+  const dateFrom = document.getElementById('a_dateFrom').value;
+  const dateTo = document.getElementById('a_dateTo').value;
+  const excludeRejected = document.getElementById('a_excludeRejected').checked;
+
+  const params = {};
+  if (dateFrom) params.dateFrom = dateFrom;
+  if (dateTo) params.dateTo = dateTo;
+
+  const btn = document.getElementById('analyzeBtn');
+  btn.disabled = true;
+  btn.textContent = t('btn_analyzing');
+  document.getElementById('analysisMsg').className = 'msg';
+
+  apiGet('getClaims', params).then(function (rows) {
+    if (!rows) throw new Error(t('err_no_data'));
+    if (rows.error) throw new Error(rows.error);
+    let filtered = rows;
+    if (excludeRejected) {
+      filtered = filtered.filter(function (r) { return r['Status'] !== 'Resolved - Rejected'; });
+    }
+    if (filtered.length === 0) {
+      document.getElementById('analysisResult').style.display = 'none';
+      showMsg('analysisMsg', t('empty_no_claims'), 'info');
+      return;
+    }
+    computeAnalysis(filtered);
+    renderAnalysis();
+    document.getElementById('analysisResult').style.display = 'block';
+  }).catch(function (err) {
+    showMsg('analysisMsg', t('analysis_gen_fail', { err: err.message }), 'error');
+  }).finally(function () {
+    btn.disabled = false;
+    btn.textContent = t('btn_analyze');
+  });
+});
+
+// Aggregates raw claim rows into one entry per Product Name + SKU, caching the
+// result in `lastAnalysis` so a language switch can re-render without refetching.
+function computeAnalysis(rows) {
+  const groups = {};
+  rows.forEach(function (r) {
+    const name = r['Product Name'] || '';
+    const sku = r['SKU'] || '';
+    const key = name + '|' + sku;
+    if (!groups[key]) groups[key] = { name: name, sku: sku, totalQty: 0, claimCount: 0, defectTypes: {} };
+    const qty = parseInt(r['Qty Defective'], 10) || 0;
+    groups[key].totalQty += qty;
+    groups[key].claimCount += 1;
+    const dtype = r['Defect Type'] || 'Others';
+    groups[key].defectTypes[dtype] = (groups[key].defectTypes[dtype] || 0) + qty;
+  });
+
+  const list = Object.keys(groups).map(function (k) { return groups[k]; })
+    .sort(function (a, b) { return b.totalQty - a.totalQty; });
+
+  lastAnalysis = { list: list, totalClaims: rows.length };
+}
+
+// Renders the summary line + table from the cached `lastAnalysis` — called both
+// right after computeAnalysis() and again whenever the app language changes.
+function renderAnalysis() {
+  if (!lastAnalysis) return;
+  const list = lastAnalysis.list;
+  const totalQty = list.reduce(function (sum, g) { return sum + g.totalQty; }, 0);
+
+  document.getElementById('analysisSummary').textContent = t('analysis_summary', {
+    items: list.length, qty: totalQty, claims: lastAnalysis.totalClaims
+  });
+
+  document.getElementById('analysisTableBody').innerHTML = list.map(function (g, idx) {
+    const breakdown = Object.keys(g.defectTypes).map(function (dt) {
+      return defectTypeLabel(dt) + ': ' + g.defectTypes[dt];
+    }).join(', ');
+    return '<tr>' +
+      '<td>' + (idx + 1) + '</td>' +
+      '<td class="wrap">' + escapeHtml(g.name) + '</td>' +
+      '<td>' + escapeHtml(g.sku) + '</td>' +
+      '<td>' + g.totalQty + '</td>' +
+      '<td>' + g.claimCount + '</td>' +
+      '<td class="wrap">' + escapeHtml(breakdown) + '</td>' +
+      '</tr>';
+  }).join('');
+}
+
+document.getElementById('exportCsvBtn').addEventListener('click', function () {
+  if (!lastAnalysis || lastAnalysis.list.length === 0) return;
+  const headers = [t('th_product'), t('th_sku'), t('th_total_qty'), t('th_claims'), t('th_breakdown')];
+  const csvRows = [headers.map(csvEscape).join(',')];
+
+  lastAnalysis.list.forEach(function (g) {
+    const breakdown = Object.keys(g.defectTypes).map(function (dt) {
+      return defectTypeLabel(dt) + ': ' + g.defectTypes[dt];
+    }).join('; ');
+    csvRows.push([g.name, g.sku, g.totalQty, g.claimCount, breakdown].map(csvEscape).join(','));
+  });
+
+  // Leading BOM so Excel opens UTF-8 (Chinese/Malay/Indonesian text) correctly instead of showing garbled characters
+  const blob = new Blob(['\uFEFF' + csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'damage_analysis_' + new Date().toISOString().slice(0, 10) + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+function csvEscape(val) {
+  const str = String(val == null ? '' : val);
+  if (str.indexOf(',') !== -1 || str.indexOf('"') !== -1 || str.indexOf('\n') !== -1) {
+    return '"' + str.replace(/"/g, '""') + '"';
+  }
+  return str;
+}
+
+/****************************************************************
+ * ============ Init ============
+ ****************************************************************/
+document.getElementById('langSwitcher').value = currentLang;
+applyStaticTranslations();
+renderPhotoRow();
+renderVideoRow();
+loadSuppliers();
+loadProducts();
+loadKits();
+initGoogleAuth();
+</script>
+</body>
+</html>
