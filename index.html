@@ -98,6 +98,16 @@
     display:flex;align-items:center;justify-content:center;font-size:26px;color:var(--gray-400);
     cursor:pointer;background:#fff;
   }
+  .add-menu{
+    position:absolute;top:100%;left:0;margin-top:6px;z-index:40;
+    background:#fff;border:1px solid var(--gray-200);border-radius:8px;box-shadow:var(--shadow);
+    min-width:170px;overflow:hidden;text-align:left;
+  }
+  .add-menu-item{
+    padding:11px 14px;font-size:13px;white-space:nowrap;cursor:pointer;color:var(--gray-800);font-weight:500;
+  }
+  .add-menu-item:hover{background:var(--gray-50);}
+  .add-menu-item:not(:last-child){border-bottom:1px solid var(--gray-100);}
   .video-thumb{
     position:relative;width:72px;height:72px;border-radius:8px;overflow:hidden;border:1px solid var(--gray-200);
     background:var(--gray-100);display:flex;flex-direction:column;align-items:center;justify-content:center;
@@ -309,6 +319,17 @@
         <label for="r_onlyUnresolved" data-i18n="chk_only_unresolved">Only include unresolved (Open / Pending) claims</label>
       </div>
 
+      <div class="checkbox-row">
+        <input type="checkbox" id="r_translateDesc">
+        <label for="r_translateDesc" data-i18n="chk_translate_desc">Translate item descriptions into:</label>
+        <select id="r_translateTargetLang" style="width:auto;margin-left:4px;">
+          <option value="en">English</option>
+          <option value="zh-CN">中文</option>
+          <option value="ms">Bahasa Melayu</option>
+          <option value="id">Bahasa Indonesia</option>
+        </select>
+      </div>
+
       <label data-i18n="label_date_range">Date Range (leave blank = no limit. Auto-filled with the date after "last sent" once a supplier is selected)</label>
       <div class="filter-row">
         <div>
@@ -422,6 +443,19 @@
   </div>
 </div>
 
+<!-- ========================= In-App Video Camera (photos already work fine via the native picker — this is specifically to get around the low-quality "quick capture" mode phones apply to web-triggered video recording) ========================= -->
+<div class="overlay" id="videoCameraOverlay">
+  <div class="modal">
+    <button class="close-x" id="videoCameraClose">✕</button>
+    <h3 data-i18n="video_camera_title">Record Video</h3>
+    <video id="videoCameraPreview" autoplay playsinline muted style="width:100%;border-radius:8px;background:#000;display:block;"></video>
+    <div id="videoCameraTimer" style="text-align:center;font-size:13px;color:var(--gray-600);margin-top:8px;min-height:18px;"></div>
+    <div id="videoCameraMsg" class="msg" style="margin-top:10px;"></div>
+    <button class="btn" id="videoCameraStartBtn" data-i18n="btn_start_recording" style="margin-top:14px;">⏺ Start Recording</button>
+    <button class="btn btn-secondary" id="videoCameraStopBtn" data-i18n="btn_stop_recording" style="display:none;margin-top:10px;">⏹ Stop Recording</button>
+  </div>
+</div>
+
 <script>
 /****************************************************************
  * ============ CONFIG (edit with your own info) ============
@@ -498,14 +532,22 @@ const TRANSLATIONS = {
     label_defect_type: 'Defect Type *',
     defect_broken: 'Broken', defect_defective: 'Defective', defect_wrong: 'Wrong Item', defect_missing: 'Missing Parts', defect_others: 'Others',
     label_description: 'Description', ph_description: 'Describe the defect in detail...',
+    btn_translate: '🌐 Translate', btn_translating: 'Translating...',
+    msg_translate_fail: '⚠️ Translation failed: {err}',
     label_photos: 'Photos (multiple allowed)',
-    label_videos: 'Videos (optional)',
+    label_videos: 'Videos (optional — use "Record in-app" for the clearest quality; "Choose from gallery" is for videos already recorded elsewhere)',
     msg_compressing_video: '🎬 Compressing video...',
     drive_connected: '✓ Google Drive connected — photos/videos upload directly, at full quality',
     drive_not_connected: 'Connect Google Drive for faster uploads and full video quality (optional)',
     drive_connect: 'Connect Google Drive',
     drive_reconnect: 'Reconnect',
     gallery_button_title: 'Choose from gallery',
+    video_camera_button_title: 'Record in-app (better quality)',
+    video_camera_title: 'Record Video',
+    btn_start_recording: '⏺ Start Recording',
+    btn_stop_recording: '⏹ Stop Recording',
+    video_camera_not_supported: '⚠️ In-app camera isn\'t supported in this browser — please use the gallery button and record with your Camera app instead',
+    video_camera_access_fail: '⚠️ Could not access camera: {err}',
     camera_button_title: 'Take with camera',
     camera_title_photo: 'Take Photo',
     camera_title_video: 'Record Video',
@@ -530,12 +572,13 @@ const TRANSLATIONS = {
     cleanup_desc_html: 'Permanently deletes claims marked <strong>Resolved - Claim Successful</strong> once their Resolved Date is <strong>{days}</strong>+ days old — including their photos on Google Drive. This never runs by itself; it only happens when you click the button below.',
     cleanup_confirm_label: 'I understand this permanently deletes the sheet rows and their Drive photos',
     btn_cleanup: '🧹 Clean Up Now', btn_cleanup_running: 'Cleaning up...',
-    cleanup_success: '✓ Deleted {rows} record(s), {photos} photo(s), and {videos} video(s) from Drive.',
+    cleanup_success: '✓ Deleted {rows} record(s) and {folders} Drive folder(s) (photos + videos).',
     cleanup_partial: ' ({n} photo(s) could not be deleted)',
     cleanup_fail: '⚠️ Cleanup failed: {err}',
 
     page3_h2: 'Generate Claim Report',
     chk_only_unresolved: 'Only include unresolved (Open / Pending) claims',
+    chk_translate_desc: 'Translate item descriptions into:',
     label_date_range: 'Date Range (leave blank = no limit. Auto-filled with the date after "last sent" once a supplier is selected)',
     btn_generate: 'Generate Report', btn_generating: 'Generating...',
     tip_last_report: 'ℹ️ Last report sent to this supplier on: {date} — date range auto-set to start the day after (you can adjust it manually)',
@@ -600,14 +643,22 @@ const TRANSLATIONS = {
     label_defect_type: 'Jenis Kerosakan *',
     defect_broken: 'Pecah/Rosak', defect_defective: 'Cacat', defect_wrong: 'Barang Salah', defect_missing: 'Bahagian Hilang', defect_others: 'Lain-lain',
     label_description: 'Penerangan', ph_description: 'Terangkan kerosakan secara terperinci...',
+    btn_translate: '🌐 Terjemah', btn_translating: 'Menterjemah...',
+    msg_translate_fail: '⚠️ Terjemahan gagal: {err}',
     label_photos: 'Foto (boleh berbilang)',
-    label_videos: 'Video (pilihan)',
+    label_videos: 'Video (pilihan — guna "Rakam dalam App" untuk kualiti paling jelas; "Pilih dari galeri" untuk video yang sudah dirakam di tempat lain)',
     msg_compressing_video: '🎬 Memampatkan video...',
     drive_connected: '✓ Google Drive disambungkan — foto/video dimuat naik terus, dalam kualiti penuh',
     drive_not_connected: 'Sambungkan Google Drive untuk muat naik lebih pantas dan kualiti video penuh (pilihan)',
     drive_connect: 'Sambungkan Google Drive',
     drive_reconnect: 'Sambung Semula',
     gallery_button_title: 'Pilih dari galeri',
+    video_camera_button_title: 'Rakam dalam App (kualiti lebih baik)',
+    video_camera_title: 'Rakam Video',
+    btn_start_recording: '⏺ Mula Merakam',
+    btn_stop_recording: '⏹ Henti Merakam',
+    video_camera_not_supported: '⚠️ Kamera dalam App tidak disokong pada pelayar ini — sila guna butang galeri dan rakam dengan aplikasi Kamera anda',
+    video_camera_access_fail: '⚠️ Tidak dapat mengakses kamera: {err}',
     camera_button_title: 'Ambil dengan kamera',
     camera_title_photo: 'Ambil Gambar',
     camera_title_video: 'Rakam Video',
@@ -632,12 +683,13 @@ const TRANSLATIONS = {
     cleanup_desc_html: 'Memadam secara kekal tuntutan bertanda <strong>Selesai - Tuntutan Berjaya</strong> apabila Tarikh Selesai sudah <strong>{days}</strong>+ hari — termasuk foto di Google Drive. Ini tidak berjalan sendiri; hanya berlaku apabila anda klik butang di bawah.',
     cleanup_confirm_label: 'Saya faham ini akan memadam kekal baris Sheet dan foto Drive berkaitan',
     btn_cleanup: '🧹 Bersihkan Sekarang', btn_cleanup_running: 'Sedang membersihkan...',
-    cleanup_success: '✓ Memadam {rows} rekod, {photos} foto, dan {videos} video dari Drive.',
+    cleanup_success: '✓ Memadam {rows} rekod dan {folders} folder Drive (foto + video).',
     cleanup_partial: ' ({n} foto tidak dapat dipadam)',
     cleanup_fail: '⚠️ Pembersihan gagal: {err}',
 
     page3_h2: 'Jana Laporan Tuntutan',
     chk_only_unresolved: 'Hanya sertakan tuntutan belum selesai (Terbuka / Menunggu)',
+    chk_translate_desc: 'Terjemah penerangan item ke:',
     label_date_range: 'Julat Tarikh (kosongkan = tiada had. Diisi automatik dengan tarikh selepas "terakhir dihantar" apabila pembekal dipilih)',
     btn_generate: 'Jana Laporan', btn_generating: 'Sedang menjana...',
     tip_last_report: 'ℹ️ Laporan terakhir dihantar kepada pembekal ini pada: {date} — julat tarikh ditetapkan automatik bermula sehari selepasnya (boleh disesuaikan secara manual)',
@@ -702,14 +754,22 @@ const TRANSLATIONS = {
     label_defect_type: 'Jenis Kerusakan *',
     defect_broken: 'Rusak/Pecah', defect_defective: 'Cacat', defect_wrong: 'Barang Salah', defect_missing: 'Bagian Hilang', defect_others: 'Lainnya',
     label_description: 'Deskripsi', ph_description: 'Jelaskan kerusakan secara detail...',
+    btn_translate: '🌐 Terjemahkan', btn_translating: 'Menerjemahkan...',
+    msg_translate_fail: '⚠️ Terjemahan gagal: {err}',
     label_photos: 'Foto (bisa banyak)',
-    label_videos: 'Video (opsional)',
+    label_videos: 'Video (opsional — gunakan "Rekam dalam App" untuk kualitas paling jernih; "Pilih dari galeri" untuk video yang sudah direkam sebelumnya)',
     msg_compressing_video: '🎬 Mengompresi video...',
     drive_connected: '✓ Google Drive tersambung — foto/video diunggah langsung, dengan kualitas penuh',
     drive_not_connected: 'Hubungkan Google Drive untuk unggahan lebih cepat dan kualitas video penuh (opsional)',
     drive_connect: 'Hubungkan Google Drive',
     drive_reconnect: 'Sambungkan Ulang',
     gallery_button_title: 'Pilih dari galeri',
+    video_camera_button_title: 'Rekam dalam App (kualitas lebih baik)',
+    video_camera_title: 'Rekam Video',
+    btn_start_recording: '⏺ Mulai Merekam',
+    btn_stop_recording: '⏹ Hentikan Merekam',
+    video_camera_not_supported: '⚠️ Kamera dalam App tidak didukung di browser ini — silakan gunakan tombol galeri dan rekam dengan aplikasi Kamera Anda',
+    video_camera_access_fail: '⚠️ Tidak dapat mengakses kamera: {err}',
     camera_button_title: 'Ambil dengan kamera',
     camera_title_photo: 'Ambil Foto',
     camera_title_video: 'Rekam Video',
@@ -734,12 +794,13 @@ const TRANSLATIONS = {
     cleanup_desc_html: 'Menghapus secara permanen klaim berstatus <strong>Selesai - Klaim Berhasil</strong> setelah Tanggal Selesai berusia <strong>{days}</strong>+ hari — termasuk foto di Google Drive. Ini tidak berjalan otomatis; hanya terjadi saat Anda mengklik tombol di bawah.',
     cleanup_confirm_label: 'Saya paham ini akan menghapus permanen baris Sheet dan foto Drive terkait',
     btn_cleanup: '🧹 Bersihkan Sekarang', btn_cleanup_running: 'Sedang membersihkan...',
-    cleanup_success: '✓ Menghapus {rows} data, {photos} foto, dan {videos} video dari Drive.',
+    cleanup_success: '✓ Menghapus {rows} data dan {folders} folder Drive (foto + video).',
     cleanup_partial: ' ({n} foto tidak dapat dihapus)',
     cleanup_fail: '⚠️ Pembersihan gagal: {err}',
 
     page3_h2: 'Buat Laporan Klaim',
     chk_only_unresolved: 'Hanya sertakan klaim belum selesai (Terbuka / Menunggu)',
+    chk_translate_desc: 'Terjemahkan deskripsi barang ke:',
     label_date_range: 'Rentang Tanggal (kosongkan = tanpa batas. Terisi otomatis dengan tanggal setelah "terakhir dikirim" saat pemasok dipilih)',
     btn_generate: 'Buat Laporan', btn_generating: 'Membuat...',
     tip_last_report: 'ℹ️ Laporan terakhir dikirim ke pemasok ini pada: {date} — rentang tanggal otomatis dimulai sehari setelahnya (dapat disesuaikan manual)',
@@ -804,14 +865,22 @@ const TRANSLATIONS = {
     label_defect_type: '损坏类型 *',
     defect_broken: '破损', defect_defective: '瑕疵', defect_wrong: '错货', defect_missing: '缺件', defect_others: '其他',
     label_description: '文字描述', ph_description: '详细描述损坏情况...',
+    btn_translate: '🌐 翻译', btn_translating: '翻译中...',
+    msg_translate_fail: '⚠️ 翻译失败：{err}',
     label_photos: '照片（可多张）',
-    label_videos: '视频（可选）',
+    label_videos: '视频（可选——想要最清楚的画质请用"App 内录影"；已经录好的视频用"从相册选择"）',
     msg_compressing_video: '🎬 视频压缩中...',
     drive_connected: '✓ 已连接 Google Drive——照片/视频将直接以原始画质上传',
     drive_not_connected: '连接 Google Drive 可以让上传更快、视频保持原始画质（可选）',
     drive_connect: '连接 Google Drive',
     drive_reconnect: '重新连接',
     gallery_button_title: '从相册选择',
+    video_camera_button_title: 'App 内录影（画质较好）',
+    video_camera_title: '录制视频',
+    btn_start_recording: '⏺ 开始录影',
+    btn_stop_recording: '⏹ 停止录影',
+    video_camera_not_supported: '⚠️ 此浏览器不支持 App 内建摄像头——请改用相册按钮，用手机相机 App 录好再选进来',
+    video_camera_access_fail: '⚠️ 无法访问相机：{err}',
     camera_button_title: '用相机拍摄',
     camera_title_photo: '拍照',
     camera_title_video: '录制视频',
@@ -836,12 +905,13 @@ const TRANSLATIONS = {
     cleanup_desc_html: '将永久删除标记为<strong>"已解决 - 成功索赔"</strong>且解决日期已满 <strong>{days}</strong> 天以上的记录 —— 包括 Google Drive 中的照片。此操作不会自动运行，只有点击下方按钮才会执行。',
     cleanup_confirm_label: '我明白这将永久删除表格行及其 Drive 照片',
     btn_cleanup: '🧹 立即清理', btn_cleanup_running: '清理中...',
-    cleanup_success: '✓ 已删除 {rows} 条记录、{photos} 张照片和 {videos} 个视频（Drive）。',
+    cleanup_success: '✓ 已删除 {rows} 条记录和 {folders} 个 Drive 文件夹（照片+视频）。',
     cleanup_partial: '（{n} 张照片删除失败）',
     cleanup_fail: '⚠️ 清理失败：{err}',
 
     page3_h2: '生成 Claim 报告',
     chk_only_unresolved: '只包含未解决的记录',
+    chk_translate_desc: '把产品描述翻译成：',
     label_date_range: '日期范围（留空 = 不限制。选择供应商后会自动填入"上次已发送"之后的日期）',
     btn_generate: '生成报告', btn_generating: '生成中...',
     tip_last_report: 'ℹ️ 该供应商上次发送报告日期：{date}，已自动从次日起累计（可手动修改）',
@@ -995,7 +1065,8 @@ const GAS_RUN_FUNCTIONS = {
   updateStatus: 'apiUpdateStatus',
   markReported: 'apiMarkReported',
   cleanupOldClaims: 'apiCleanupOldClaims',
-  deleteClaimNow: 'apiDeleteClaimNow'
+  deleteClaimNow: 'apiDeleteClaimNow',
+  translateBatch: 'apiTranslateBatch'
 };
 
 function callGoogleScriptRun(action, params) {
@@ -1415,6 +1486,130 @@ document.getElementById('videoInput').addEventListener('change', function (e) {
   e.target.value = ''; // allow re-selecting the same video
 });
 
+/****************************************************************
+ * ============ In-app video camera (getUserMedia + MediaRecorder) ============
+ * This is a live camera stream WE record directly, as opposed to handing the
+ * recording off to the OS via a file input — that's the whole point: OS/browser
+ * "quick capture" video intents apply a low-quality profile that a plain file
+ * input can't override, but a getUserMedia stream never goes through that path
+ * at all, so we get to set the quality ourselves.
+ *
+ * This ONLY works when the page has its own real origin (getUserMedia needs
+ * camera permission delegation that Apps Script's iframe sandbox doesn't
+ * grant) — fine here since this file is meant to be hosted outside Apps
+ * Script (e.g. GitHub Pages). Always resolves gracefully to an error message
+ * (never leaves the UI stuck) if the camera can't be accessed for any reason.
+ ****************************************************************/
+const VIDEO_CAMERA_WIDTH = 1920;
+const VIDEO_CAMERA_HEIGHT = 1080;
+const VIDEO_CAMERA_BITRATE = 8000000;  // 8 Mbps — no need to keep this small anymore now that Drive direct-upload doesn't route through base64/Apps Script
+const VIDEO_CAMERA_AUDIO_BITRATE = 128000;
+
+let videoCameraStream = null;
+let videoCameraRecorder = null;
+let videoCameraChunks = [];
+let videoCameraTimerInterval = null;
+let videoCameraStartTime = null;
+
+function openVideoCamera() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showMsg('msg1', t('video_camera_not_supported'), 'error');
+    return;
+  }
+
+  document.getElementById('videoCameraStartBtn').style.display = 'block';
+  document.getElementById('videoCameraStopBtn').style.display = 'none';
+  document.getElementById('videoCameraTimer').textContent = '';
+  document.getElementById('videoCameraMsg').className = 'msg';
+
+  navigator.mediaDevices.getUserMedia({
+    video: { facingMode: 'environment', width: { ideal: VIDEO_CAMERA_WIDTH }, height: { ideal: VIDEO_CAMERA_HEIGHT } },
+    audio: true
+  }).then(function (stream) {
+    videoCameraStream = stream;
+    document.getElementById('videoCameraPreview').srcObject = stream;
+    document.getElementById('videoCameraOverlay').classList.add('show');
+  }).catch(function (err) {
+    showMsg('msg1', t('video_camera_access_fail', { err: err.message }), 'error');
+  });
+}
+
+function closeVideoCamera(discard) {
+  if (videoCameraRecorder && videoCameraRecorder.state !== 'inactive') {
+    if (discard) {
+      // Closed via ✕ while still recording — discard rather than auto-saving a partial clip
+      videoCameraRecorder.ondataavailable = null;
+      videoCameraRecorder.onstop = null;
+    }
+    videoCameraRecorder.stop();
+  }
+  if (videoCameraStream) {
+    videoCameraStream.getTracks().forEach(function (track) { track.stop(); });
+    videoCameraStream = null;
+  }
+  clearInterval(videoCameraTimerInterval);
+  document.getElementById('videoCameraOverlay').classList.remove('show');
+}
+
+document.getElementById('videoCameraClose').addEventListener('click', function () {
+  closeVideoCamera(true);
+});
+
+document.getElementById('videoCameraStartBtn').addEventListener('click', function () {
+  videoCameraChunks = [];
+  let mimeType = '';
+  ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4'].some(function (candidate) {
+    if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(candidate)) {
+      mimeType = candidate;
+      return true;
+    }
+    return false;
+  });
+  const recorderOptions = { videoBitsPerSecond: VIDEO_CAMERA_BITRATE, audioBitsPerSecond: VIDEO_CAMERA_AUDIO_BITRATE };
+  if (mimeType) recorderOptions.mimeType = mimeType;
+
+  try {
+    videoCameraRecorder = new MediaRecorder(videoCameraStream, recorderOptions);
+  } catch (err) {
+    document.getElementById('videoCameraMsg').textContent = t('video_camera_access_fail', { err: err.message });
+    document.getElementById('videoCameraMsg').className = 'msg show error';
+    return;
+  }
+
+  videoCameraRecorder.ondataavailable = function (e) {
+    if (e.data && e.data.size > 0) videoCameraChunks.push(e.data);
+  };
+  videoCameraRecorder.onstop = function () {
+    if (videoCameraChunks.length > 0) {
+      const blob = new Blob(videoCameraChunks, { type: videoCameraRecorder.mimeType || 'video/webm' });
+      const ext = (blob.type || '').indexOf('mp4') !== -1 ? 'mp4' : 'webm';
+      const file = new File([blob], 'recorded_' + Date.now() + '.' + ext, { type: blob.type });
+      videoList.push({ rawFile: file, mimeType: file.type, name: file.name });
+      renderVideoRow();
+    }
+    videoCameraChunks = [];
+  };
+
+  videoCameraRecorder.start();
+  videoCameraStartTime = Date.now();
+  document.getElementById('videoCameraStartBtn').style.display = 'none';
+  document.getElementById('videoCameraStopBtn').style.display = 'block';
+  videoCameraTimerInterval = setInterval(function () {
+    const secs = Math.floor((Date.now() - videoCameraStartTime) / 1000);
+    const m = Math.floor(secs / 60), s = secs % 60;
+    document.getElementById('videoCameraTimer').textContent =
+      (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+  }, 500);
+});
+
+document.getElementById('videoCameraStopBtn').addEventListener('click', function () {
+  if (videoCameraRecorder && videoCameraRecorder.state !== 'inactive') {
+    videoCameraRecorder.stop();
+  }
+  clearInterval(videoCameraTimerInterval);
+  closeVideoCamera();
+});
+
 // Attempts to re-encode a video file at a lower bitrate using the browser's own
 // playback + capture pipeline. ALWAYS resolves (never rejects) — on any failure,
 // unsupported browser, or if the "compressed" result isn't actually smaller, it
@@ -1583,8 +1778,9 @@ function renderVideoRow() {
   const addBtn = document.createElement('div');
   addBtn.className = 'upload-btn';
   addBtn.textContent = '＋';
-  addBtn.addEventListener('click', function () {
-    document.getElementById('videoInput').click();
+  addBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    toggleVideoAddMenu(addBtn);
   });
   row.appendChild(addBtn);
 
@@ -1595,6 +1791,38 @@ function renderVideoRow() {
     });
   });
 }
+
+// Video gets its own "+" menu (photos don't need one — the native picker's
+// photo capture is already full quality). The in-app camera option uses
+// getUserMedia + MediaRecorder directly, which we fully control the quality
+// of — this sidesteps the low-quality "quick capture" mode phones apply when
+// a web page hands video recording off to the OS via a plain file input.
+function toggleVideoAddMenu(anchorEl) {
+  closeVideoAddMenu();
+  const menu = document.createElement('div');
+  menu.className = 'add-menu';
+  menu.innerHTML =
+    '<div class="add-menu-item" data-action="camera">🎥 ' + t('video_camera_button_title') + '</div>' +
+    '<div class="add-menu-item" data-action="gallery">🖼️ ' + t('gallery_button_title') + '</div>';
+  anchorEl.appendChild(menu);
+
+  menu.querySelector('[data-action="camera"]').addEventListener('click', function (e) {
+    e.stopPropagation();
+    closeVideoAddMenu();
+    openVideoCamera();
+  });
+  menu.querySelector('[data-action="gallery"]').addEventListener('click', function (e) {
+    e.stopPropagation();
+    closeVideoAddMenu();
+    document.getElementById('videoInput').click();
+  });
+}
+
+function closeVideoAddMenu() {
+  document.querySelectorAll('.add-menu').forEach(function (m) { m.remove(); });
+}
+
+document.addEventListener('click', closeVideoAddMenu);
 
 /****************************************************************
  * ============ Google Drive direct-upload (optional, via OAuth) ============
@@ -1911,7 +2139,7 @@ document.getElementById('cleanupBtn').addEventListener('click', function () {
   apiPost({ action: 'cleanupOldClaims' }).then(function (res) {
     if (res.error) throw new Error(res.error);
     msgEl.className = 'msg show success';
-    msgEl.textContent = t('cleanup_success', { rows: res.deletedRows, photos: res.deletedPhotos, videos: res.deletedVideos }) +
+    msgEl.textContent = t('cleanup_success', { rows: res.deletedRows, folders: res.deletedFolders }) +
       (res.errors && res.errors.length ? t('cleanup_partial', { n: res.errors.length }) : '');
     document.getElementById('cleanupConfirm').checked = false;
     loadClaimsOverview();
@@ -2102,6 +2330,8 @@ document.getElementById('genBtn').addEventListener('click', function () {
   const onlyUnresolved = document.getElementById('r_onlyUnresolved').checked;
   const dateFrom = document.getElementById('r_dateFrom').value;
   const dateTo = document.getElementById('r_dateTo').value;
+  const translateDesc = document.getElementById('r_translateDesc').checked;
+  const translateTargetLang = document.getElementById('r_translateTargetLang').value;
 
   const params = {};
   if (supplier) params.supplier = supplier;
@@ -2123,8 +2353,30 @@ document.getElementById('genBtn').addEventListener('click', function () {
     if (filtered.length === 0) {
       document.getElementById('reportResult').style.display = 'none';
       showReportEmptyTip();
-      return;
+      return Promise.resolve(null);
     }
+
+    if (!translateDesc) {
+      return filtered;
+    }
+
+    // Batch-translate every claim's Description in one call, then swap the
+    // translated text in for the report only — the actual Sheet data is
+    // never touched by this.
+    btn.textContent = t('btn_translating');
+    const texts = filtered.map(function (r) { return r['Description'] || ''; });
+    return apiPost({ action: 'translateBatch', texts: texts, targetLang: translateTargetLang }).then(function (res) {
+      if (res.error) throw new Error(res.error);
+      return filtered.map(function (r, idx) {
+        return Object.assign({}, r, { Description: res.translated[idx] || r['Description'] });
+      });
+    }).catch(function (err) {
+      // Translation failing shouldn't block the report — just fall back to the original text
+      console.error('Description translation failed, using original text:', err);
+      return filtered;
+    });
+  }).then(function (filtered) {
+    if (!filtered) return; // already handled the "no claims" case above
     lastReportRows = filtered;
     lastReportSupplier = supplier;
     buildReports(filtered, supplier || t('opt_all_suppliers'));
