@@ -6,6 +6,8 @@
 <title>Supplier Defect Claim Manager</title>
 <!-- Google Identity Services — used only for the optional "direct to Drive" upload path (OAuth token request). Harmless/no-op if CONFIG.GOOGLE_CLIENT_ID is left blank. -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+<!-- jsQR — pure-JS QR code decoder (no native API dependency, works in Safari too, unlike BarcodeDetector) -->
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <style>
   /* ========== Global Styles ========== */
   :root{
@@ -252,6 +254,7 @@
         <div class="suggestion-list" id="productSuggestions"></div>
       </div>
       <div id="productLoadMsg" class="msg" style="margin-top:6px;font-size:12px;"></div>
+      <button type="button" class="btn btn-secondary btn-small" id="scanQrBtn" style="margin-top:8px;">📷 <span data-i18n="btn_scan_qr">Scan QR Code</span></button>
 
       <label data-i18n="label_sku">SKU (optional)</label>
       <div class="autocomplete-wrap">
@@ -406,6 +409,16 @@
         </div>
         <div id="statsBarChart" style="margin-top:18px;"></div>
         <p id="statsFootnote" style="font-size:12px;color:var(--gray-600);margin-top:12px;"></p>
+
+        <div style="margin-top:20px;padding-top:20px;border-top:1px solid var(--gray-200);">
+          <p class="cleanup-desc" data-i18n="reset_stats_desc">Resets the "Already claimed" count back to what's currently in the sheet — this only clears the historical count of already-deleted claims, it does NOT delete or restore any actual records.</p>
+          <div class="checkbox-row">
+            <input type="checkbox" id="resetStatsConfirm">
+            <label for="resetStatsConfirm" data-i18n="reset_stats_confirm_label">I understand this resets the historical count and cannot be undone</label>
+          </div>
+          <button class="btn btn-secondary" id="resetStatsBtn" data-i18n="btn_reset_stats" disabled style="margin-top:12px;">↺ Reset Accumulated Count</button>
+          <div id="resetStatsMsg" class="msg" style="margin-top:10px;"></div>
+        </div>
       </div>
     </div>
 
@@ -471,6 +484,7 @@
     </select>
     <label data-i18n="label_resolved_date">Resolved Date (fill in when status is Resolved)</label>
     <input type="date" id="m_resolvedDate">
+    <div id="m_resolvedDateReminder" class="msg" style="margin-top:6px;"></div>
     <label data-i18n="label_remarks">Remarks</label>
     <textarea id="m_remarks"></textarea>
     <button class="btn" id="m_saveBtn" data-i18n="btn_save" style="margin-top:16px;">Save</button>
@@ -497,6 +511,18 @@
     <div id="videoCameraMsg" class="msg" style="margin-top:10px;"></div>
     <button class="btn" id="videoCameraStartBtn" data-i18n="btn_start_recording" style="margin-top:14px;">⏺ Start Recording</button>
     <button class="btn btn-secondary" id="videoCameraStopBtn" data-i18n="btn_stop_recording" style="display:none;margin-top:10px;">⏹ Stop Recording</button>
+  </div>
+</div>
+
+<!-- ========================= QR Code Scanner (identify a product by scanning a code on its packaging/label) ========================= -->
+<div class="overlay" id="qrScannerOverlay">
+  <div class="modal">
+    <button class="close-x" id="qrScannerClose">✕</button>
+    <h3 data-i18n="qr_scanner_title">Scan QR Code</h3>
+    <video id="qrScannerPreview" autoplay playsinline muted style="width:100%;border-radius:8px;background:#000;display:block;"></video>
+    <canvas id="qrScannerCanvas" style="display:none;"></canvas>
+    <p style="font-size:13px;color:var(--gray-600);text-align:center;margin-top:10px;" data-i18n="qr_scanner_hint">Point your camera at a QR code</p>
+    <div id="qrScannerMsg" class="msg" style="margin-top:10px;"></div>
   </div>
 </div>
 
@@ -572,6 +598,13 @@ const TRANSLATIONS = {
     label_product: 'Product Name *', ph_product: 'Type to search your inventory, or enter a new product',
     more_matches_hint: '+ {n} more match(es) — keep typing to narrow it down',
     label_sku: 'SKU (optional)', ph_sku: 'e.g. BT-EARBUD-001',
+    btn_scan_qr: 'Scan QR Code',
+    qr_scanner_title: 'Scan QR Code',
+    qr_scanner_hint: 'Point your camera at a QR code',
+    qr_scanner_not_supported: '⚠️ QR scanning isn\'t supported in this browser',
+    qr_scanner_access_fail: '⚠️ Could not access camera: {err}',
+    qr_scan_matched: '✓ Matched: {name}',
+    qr_scan_no_match: 'ℹ️ Scanned "{text}" — no matching product found, filled into SKU. Please check the Product Name.',
     label_qty: 'Qty Defective *', ph_qty: 'e.g. 5',
     label_defect_type: 'Defect Type *',
     defect_broken: 'Broken', defect_defective: 'Defective', defect_wrong: 'Wrong Item', defect_missing: 'Missing Parts', defect_others: 'Others',
@@ -644,6 +677,7 @@ const TRANSLATIONS = {
     modal_title_default: 'Update Claim Status',
     modal_title_update: 'Update Status: {id}',
     label_status: 'Status', label_resolved_date: 'Resolved Date (fill in when status is Resolved)',
+    resolved_date_reminder: 'ℹ️ Left blank, this will be auto-filled with today\'s date when you save — only stays empty if this status was set directly in the Sheet instead of here.',
     label_remarks: 'Remarks', btn_save: 'Save', btn_saving: 'Saving...',
     delete_now_desc: 'This claim is marked as a successful resolution. You can delete it right now instead of waiting for the automatic 30-day cleanup.',
     delete_now_confirm_label: 'I understand this permanently deletes this record and its Drive photos/videos',
@@ -659,6 +693,11 @@ const TRANSLATIONS = {
     stats_in_progress: 'Claiming in progress',
     stats_claimed: 'Already claimed',
     stats_footnote: '{current} still on record, {deleted} already cleaned up (but still counted here)',
+    reset_stats_desc: 'Resets the "Already claimed" count back to what\'s currently in the sheet — this only clears the historical count of already-deleted claims, it does NOT delete or restore any actual records.',
+    reset_stats_confirm_label: 'I understand this resets the historical count and cannot be undone',
+    btn_reset_stats: '↺ Reset Accumulated Count', btn_resetting_stats: 'Resetting...',
+    msg_reset_stats_success: '✓ Historical count reset to 0.',
+    msg_reset_stats_fail: '⚠️ Reset failed: {err}',
     page4_h2: '📊 Damage Analysis',
     label_date_range_simple: 'Date Range (leave blank = all time)',
     chk_exclude_rejected: 'Exclude rejected claims from analysis',
@@ -690,6 +729,13 @@ const TRANSLATIONS = {
     label_product: 'Nama Produk *', ph_product: 'Taip untuk cari dalam inventori, atau masukkan produk baharu',
     more_matches_hint: '+ {n} lagi hasil — taip lebih lanjut untuk mempersempit carian',
     label_sku: 'SKU (pilihan)', ph_sku: 'cth: BT-EARBUD-001',
+    btn_scan_qr: 'Imbas Kod QR',
+    qr_scanner_title: 'Imbas Kod QR',
+    qr_scanner_hint: 'Halakan kamera anda ke kod QR',
+    qr_scanner_not_supported: '⚠️ Imbasan QR tidak disokong pada pelayar ini',
+    qr_scanner_access_fail: '⚠️ Tidak dapat mengakses kamera: {err}',
+    qr_scan_matched: '✓ Sepadan: {name}',
+    qr_scan_no_match: 'ℹ️ Mengimbas "{text}" — tiada produk sepadan dijumpai, diisi ke dalam SKU. Sila semak Nama Produk.',
     label_qty: 'Kuantiti Rosak *', ph_qty: 'cth: 5',
     label_defect_type: 'Jenis Kerosakan *',
     defect_broken: 'Pecah/Rosak', defect_defective: 'Cacat', defect_wrong: 'Barang Salah', defect_missing: 'Bahagian Hilang', defect_others: 'Lain-lain',
@@ -762,6 +808,7 @@ const TRANSLATIONS = {
     modal_title_default: 'Kemas Kini Status Tuntutan',
     modal_title_update: 'Kemas Kini Status: {id}',
     label_status: 'Status', label_resolved_date: 'Tarikh Selesai (isi apabila status Selesai)',
+    resolved_date_reminder: 'ℹ️ Jika dibiarkan kosong, ini akan diisi automatik dengan tarikh hari ini semasa anda simpan — hanya kekal kosong jika status ini ditetapkan terus dalam Sheet dan bukan di sini.',
     label_remarks: 'Catatan', btn_save: 'Simpan', btn_saving: 'Sedang menyimpan...',
     delete_now_desc: 'Tuntutan ini ditanda sebagai penyelesaian berjaya. Anda boleh memadamnya sekarang tanpa menunggu pembersihan automatik 30 hari.',
     delete_now_confirm_label: 'Saya faham ini akan memadam kekal rekod ini dan foto/video Drive berkaitan',
@@ -777,6 +824,11 @@ const TRANSLATIONS = {
     stats_in_progress: 'Tuntutan sedang diproses',
     stats_claimed: 'Sudah dituntut',
     stats_footnote: '{current} masih dalam rekod, {deleted} sudah dibersihkan (tetapi masih dikira di sini)',
+    reset_stats_desc: 'Menetapkan semula kiraan "Sudah dituntut" kepada apa yang ada dalam helaian sekarang — ini hanya membersihkan kiraan sejarah tuntutan yang telah dipadam, TIDAK memadam atau memulihkan sebarang rekod sebenar.',
+    reset_stats_confirm_label: 'Saya faham ini menetapkan semula kiraan sejarah dan tidak boleh dibatalkan',
+    btn_reset_stats: '↺ Tetapkan Semula Kiraan Terkumpul', btn_resetting_stats: 'Menetapkan semula...',
+    msg_reset_stats_success: '✓ Kiraan sejarah ditetapkan semula kepada 0.',
+    msg_reset_stats_fail: '⚠️ Penetapan semula gagal: {err}',
     page4_h2: '📊 Analisis Kerosakan',
     label_date_range_simple: 'Julat Tarikh (kosongkan = sepanjang masa)',
     chk_exclude_rejected: 'Kecualikan tuntutan yang ditolak daripada analisis',
@@ -808,6 +860,13 @@ const TRANSLATIONS = {
     label_product: 'Nama Produk *', ph_product: 'Ketik untuk mencari di inventaris, atau masukkan produk baru',
     more_matches_hint: '+ {n} hasil lagi — ketik lebih lanjut untuk mempersempit pencarian',
     label_sku: 'SKU (opsional)', ph_sku: 'cth: BT-EARBUD-001',
+    btn_scan_qr: 'Pindai Kode QR',
+    qr_scanner_title: 'Pindai Kode QR',
+    qr_scanner_hint: 'Arahkan kamera Anda ke kode QR',
+    qr_scanner_not_supported: '⚠️ Pemindaian QR tidak didukung di browser ini',
+    qr_scanner_access_fail: '⚠️ Tidak dapat mengakses kamera: {err}',
+    qr_scan_matched: '✓ Cocok: {name}',
+    qr_scan_no_match: 'ℹ️ Memindai "{text}" — tidak ditemukan produk yang cocok, diisi ke SKU. Harap periksa Nama Produk.',
     label_qty: 'Jumlah Rusak *', ph_qty: 'cth: 5',
     label_defect_type: 'Jenis Kerusakan *',
     defect_broken: 'Rusak/Pecah', defect_defective: 'Cacat', defect_wrong: 'Barang Salah', defect_missing: 'Bagian Hilang', defect_others: 'Lainnya',
@@ -880,6 +939,7 @@ const TRANSLATIONS = {
     modal_title_default: 'Perbarui Status Klaim',
     modal_title_update: 'Perbarui Status: {id}',
     label_status: 'Status', label_resolved_date: 'Tanggal Selesai (isi saat status Selesai)',
+    resolved_date_reminder: 'ℹ️ Jika dibiarkan kosong, ini akan otomatis diisi dengan tanggal hari ini saat Anda menyimpan — hanya tetap kosong jika status ini diatur langsung di Sheet, bukan di sini.',
     label_remarks: 'Catatan', btn_save: 'Simpan', btn_saving: 'Menyimpan...',
     delete_now_desc: 'Klaim ini ditandai sebagai penyelesaian berhasil. Anda bisa menghapusnya sekarang tanpa menunggu pembersihan otomatis 30 hari.',
     delete_now_confirm_label: 'Saya paham ini akan menghapus permanen data ini dan foto/video Drive terkait',
@@ -895,6 +955,11 @@ const TRANSLATIONS = {
     stats_in_progress: 'Klaim sedang diproses',
     stats_claimed: 'Sudah diklaim',
     stats_footnote: '{current} masih dalam catatan, {deleted} sudah dibersihkan (tapi tetap dihitung di sini)',
+    reset_stats_desc: 'Mengatur ulang hitungan "Sudah diklaim" ke yang saat ini ada di sheet — ini hanya menghapus hitungan historis klaim yang sudah dihapus, TIDAK menghapus atau memulihkan data sebenarnya.',
+    reset_stats_confirm_label: 'Saya paham ini mengatur ulang hitungan historis dan tidak dapat dibatalkan',
+    btn_reset_stats: '↺ Atur Ulang Hitungan Kumulatif', btn_resetting_stats: 'Mengatur ulang...',
+    msg_reset_stats_success: '✓ Hitungan historis diatur ulang ke 0.',
+    msg_reset_stats_fail: '⚠️ Pengaturan ulang gagal: {err}',
     page4_h2: '📊 Analisis Kerusakan',
     label_date_range_simple: 'Rentang Tanggal (kosongkan = sepanjang waktu)',
     chk_exclude_rejected: 'Kecualikan klaim yang ditolak dari analisis',
@@ -926,6 +991,13 @@ const TRANSLATIONS = {
     label_product: '产品名称 *', ph_product: '输入以搜索库存产品，或手动输入新产品',
     more_matches_hint: '还有 {n} 项结果，输入更多关键字可缩小范围',
     label_sku: 'SKU（可选）', ph_sku: '例如：BT-EARBUD-001',
+    btn_scan_qr: '扫描 QR Code',
+    qr_scanner_title: '扫描 QR Code',
+    qr_scanner_hint: '把镜头对准 QR Code',
+    qr_scanner_not_supported: '⚠️ 此浏览器不支持 QR 扫描',
+    qr_scanner_access_fail: '⚠️ 无法访问相机：{err}',
+    qr_scan_matched: '✓ 已匹配：{name}',
+    qr_scan_no_match: 'ℹ️ 扫描到"{text}"——没有找到对应的产品，已填入 SKU 栏，请自行确认产品名称。',
     label_qty: '损坏数量 *', ph_qty: '例如：5',
     label_defect_type: '损坏类型 *',
     defect_broken: '破损', defect_defective: '瑕疵', defect_wrong: '错货', defect_missing: '缺件', defect_others: '其他',
@@ -998,6 +1070,7 @@ const TRANSLATIONS = {
     modal_title_default: '更新 Claim 状态',
     modal_title_update: '更新状态：{id}',
     label_status: '状态', label_resolved_date: '解决日期（状态为已解决时填写）',
+    resolved_date_reminder: 'ℹ️ 不填的话，存档时会自动帮你填入今天的日期——只有直接在 Google Sheet 里改状态（没透过这个弹窗）才会真的留空。',
     label_remarks: '备注', btn_save: '保存', btn_saving: '保存中...',
     delete_now_desc: '这笔记录已标记为成功索赔，你可以现在就删除它，不用等30天自动清理。',
     delete_now_confirm_label: '我明白这将永久删除这笔记录及其 Drive 照片/视频',
@@ -1013,6 +1086,11 @@ const TRANSLATIONS = {
     stats_in_progress: '正在 Claim',
     stats_claimed: '已经 Claim',
     stats_footnote: '{current} 笔目前还在记录里，{deleted} 笔已经被清理掉（但这里仍然算进去）',
+    reset_stats_desc: '把"已经 Claim"的数字重置回目前 Sheet 里实际有的数量——这只会清掉"已删除记录"那部分的历史累计，**不会**删除或恢复任何实际记录。',
+    reset_stats_confirm_label: '我明白这会重置历史累计数字，且无法复原',
+    btn_reset_stats: '↺ 重置累计数字', btn_resetting_stats: '重置中...',
+    msg_reset_stats_success: '✓ 历史累计数字已重置为 0。',
+    msg_reset_stats_fail: '⚠️ 重置失败：{err}',
     page4_h2: '📊 损坏分析',
     label_date_range_simple: '日期范围（留空 = 不限制）',
     chk_exclude_rejected: '分析中排除被拒绝的记录',
@@ -1140,7 +1218,8 @@ const GAS_RUN_FUNCTIONS = {
   markReported: 'apiMarkReported',
   cleanupOldClaims: 'apiCleanupOldClaims',
   deleteClaimNow: 'apiDeleteClaimNow',
-  translateBatch: 'apiTranslateBatch'
+  translateBatch: 'apiTranslateBatch',
+  resetCumulativeStats: 'apiResetCumulativeStats'
 };
 
 function callGoogleScriptRun(action, params) {
@@ -1684,6 +1763,103 @@ document.getElementById('videoCameraStopBtn').addEventListener('click', function
   clearInterval(videoCameraTimerInterval);
   closeVideoCamera();
 });
+
+/****************************************************************
+ * ============ QR Code scanner (identify a product by its code) ============
+ * Uses jsQR (pure JS, no native API dependency) against a live getUserMedia
+ * stream — this works in Safari/iOS too, unlike the browser-native
+ * BarcodeDetector API which Safari doesn't support. After a successful scan,
+ * the decoded text is matched against the loaded Product List by SKU; if
+ * found, Product Name + SKU are filled in automatically. If there's no
+ * match, the raw scanned text is dropped into the SKU field so it's not
+ * lost, and the person can still search/type the Product Name manually.
+ ****************************************************************/
+let qrScannerStream = null;
+let qrScannerAnimationId = null;
+
+function openQRScanner() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showMsg('msg1', t('qr_scanner_not_supported'), 'error');
+    return;
+  }
+  if (typeof jsQR === 'undefined') {
+    showMsg('msg1', t('qr_scanner_not_supported'), 'error');
+    return;
+  }
+
+  document.getElementById('qrScannerMsg').className = 'msg';
+
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }).then(function (stream) {
+    qrScannerStream = stream;
+    const video = document.getElementById('qrScannerPreview');
+    video.srcObject = stream;
+    document.getElementById('qrScannerOverlay').classList.add('show');
+    video.play().then(function () {
+      qrScannerAnimationId = requestAnimationFrame(scanQRFrame);
+    });
+  }).catch(function (err) {
+    showMsg('msg1', t('qr_scanner_access_fail', { err: err.message }), 'error');
+  });
+}
+
+function scanQRFrame() {
+  const video = document.getElementById('qrScannerPreview');
+  const canvas = document.getElementById('qrScannerCanvas');
+  if (video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth > 0) {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    let imageData;
+    try {
+      imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    } catch (e) {
+      qrScannerAnimationId = requestAnimationFrame(scanQRFrame);
+      return;
+    }
+    const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+    if (code && code.data) {
+      handleQRResult(code.data);
+      return; // found one — stop the scan loop, don't queue another frame
+    }
+  }
+  qrScannerAnimationId = requestAnimationFrame(scanQRFrame);
+}
+
+function closeQRScanner() {
+  if (qrScannerAnimationId) {
+    cancelAnimationFrame(qrScannerAnimationId);
+    qrScannerAnimationId = null;
+  }
+  if (qrScannerStream) {
+    qrScannerStream.getTracks().forEach(function (track) { track.stop(); });
+    qrScannerStream = null;
+  }
+  document.getElementById('qrScannerOverlay').classList.remove('show');
+}
+
+document.getElementById('qrScannerClose').addEventListener('click', closeQRScanner);
+document.getElementById('scanQrBtn').addEventListener('click', openQRScanner);
+
+function handleQRResult(text) {
+  closeQRScanner();
+  const trimmed = String(text || '').trim();
+  if (!trimmed) return;
+
+  const match = productsCache.find(function (p) { return p.skuLower === trimmed.toLowerCase(); });
+  if (match) {
+    document.getElementById('f_product').value = match.name;
+    document.getElementById('f_sku').value = match.sku;
+    checkKitInfo();
+    showMsg('msg1', t('qr_scan_matched', { name: match.name }), 'success');
+  } else {
+    // No exact SKU match in the Product List — keep the scanned text (in
+    // case it's a valid SKU that just isn't in Product List yet) and let
+    // the person fill in / search the Product Name themselves.
+    document.getElementById('f_sku').value = trimmed;
+    showMsg('msg1', t('qr_scan_no_match', { text: trimmed }), 'info');
+  }
+}
 
 // Attempts to re-encode a video file at a lower bitrate using the browser's own
 // playback + capture pipeline. ALWAYS resolves (never rejects) — on any failure,
@@ -2313,6 +2489,7 @@ function openStatusModal(rowIndex) {
   document.getElementById('m_status').value = record['Status'] || 'Open';
   document.getElementById('m_resolvedDate').value = record['Resolved Date'] || '';
   document.getElementById('m_remarks').value = record['Remarks'] || '';
+  checkResolvedDateReminder();
 
   // Only claims already saved as "Resolved - Claim Successful" get the option
   // to delete right now instead of waiting for the automatic 30-day cleanup.
@@ -2325,6 +2502,28 @@ function openStatusModal(rowIndex) {
 
   document.getElementById('modalOverlay').classList.add('show');
 }
+
+// Shows a persistent reminder whenever Status is set to a resolved state
+// (Successful or Rejected) but Resolved Date is still empty — a blank
+// Resolved Date means "Delete All Successful Claims" / the 30-day cleanup
+// will never pick this claim up, so it's worth flagging clearly rather than
+// silently working around it.
+function checkResolvedDateReminder() {
+  const status = document.getElementById('m_status').value;
+  const resolvedDate = document.getElementById('m_resolvedDate').value;
+  const reminderEl = document.getElementById('m_resolvedDateReminder');
+
+  if (isResolvedStatus(status) && !resolvedDate) {
+    reminderEl.textContent = t('resolved_date_reminder');
+    reminderEl.className = 'msg show info';
+  } else {
+    reminderEl.className = 'msg';
+    reminderEl.textContent = '';
+  }
+}
+
+document.getElementById('m_status').addEventListener('change', checkResolvedDateReminder);
+document.getElementById('m_resolvedDate').addEventListener('input', checkResolvedDateReminder);
 
 document.getElementById('m_deleteConfirm').addEventListener('change', function () {
   document.getElementById('m_deleteBtn').disabled = !this.checked;
@@ -2707,6 +2906,32 @@ function renderStats() {
     current: lastStats.successCurrent, deleted: lastStats.successDeleted
   });
 }
+
+document.getElementById('resetStatsConfirm').addEventListener('change', function () {
+  document.getElementById('resetStatsBtn').disabled = !this.checked;
+});
+
+document.getElementById('resetStatsBtn').addEventListener('click', function () {
+  const btn = this;
+  const msgEl = document.getElementById('resetStatsMsg');
+  btn.disabled = true;
+  btn.textContent = t('btn_resetting_stats');
+  msgEl.className = 'msg';
+
+  apiPost({ action: 'resetCumulativeStats' }).then(function (res) {
+    if (res.error) throw new Error(res.error);
+    msgEl.className = 'msg show success';
+    msgEl.textContent = t('msg_reset_stats_success');
+    document.getElementById('resetStatsConfirm').checked = false;
+    loadStats();
+  }).catch(function (err) {
+    msgEl.className = 'msg show error';
+    msgEl.textContent = t('msg_reset_stats_fail', { err: err.message });
+  }).finally(function () {
+    btn.disabled = true; // re-lock until the checkbox is ticked again
+    btn.textContent = t('btn_reset_stats');
+  });
+});
 
 /****************************************************************
  * ============ Page 4: Damage Analysis ============
