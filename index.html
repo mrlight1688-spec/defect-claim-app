@@ -1862,16 +1862,31 @@ function handleQRResult(text) {
   const trimmed = String(text || '').trim();
   if (!trimmed) return;
 
-  const match = productsCache.find(function (p) { return p.skuLower === trimmed.toLowerCase(); });
+  // Normalized (no internal whitespace, lowercase) exact match first
+  const normalized = trimmed.toLowerCase().replace(/\s+/g, '');
+  let match = productsCache.find(function (p) {
+    return p.skuLower.replace(/\s+/g, '') === normalized;
+  });
+
+  // Fallback: partial match either direction — covers QR codes that wrap the
+  // SKU in extra characters (a URL, padding, etc.) instead of encoding it as
+  // the raw SKU string alone.
+  if (!match) {
+    match = productsCache.find(function (p) {
+      const skuNorm = p.skuLower.replace(/\s+/g, '');
+      return skuNorm.length > 3 && (normalized.indexOf(skuNorm) !== -1 || skuNorm.indexOf(normalized) !== -1);
+    });
+  }
+
   if (match) {
     document.getElementById('f_product').value = match.name;
     document.getElementById('f_sku').value = match.sku;
     checkKitInfo();
     showMsg('msg1', t('qr_scan_matched', { name: match.name }), 'success');
   } else {
-    // No exact SKU match in the Product List — keep the scanned text (in
-    // case it's a valid SKU that just isn't in Product List yet) and let
-    // the person fill in / search the Product Name themselves.
+    // No match in the Product List — keep the scanned text (in case it's a
+    // valid SKU that just isn't in Product List yet) and let the person fill
+    // in / search the Product Name themselves.
     document.getElementById('f_sku').value = trimmed;
     showMsg('msg1', t('qr_scan_no_match', { text: trimmed }), 'info');
   }
