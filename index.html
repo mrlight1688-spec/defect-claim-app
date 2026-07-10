@@ -179,6 +179,16 @@
   .analysis-table td.wrap{white-space:normal;}
   .analysis-table tr:last-child td{border-bottom:none;}
 
+  /* Claim status summary (stat boxes + simple bar chart) */
+  .stats-numbers{display:flex;gap:12px;flex-wrap:wrap;}
+  .stats-box{flex:1;min-width:100px;background:var(--gray-50);border-radius:10px;padding:14px 12px;text-align:center;}
+  .stats-value{font-size:26px;font-weight:700;color:var(--gray-800);line-height:1.2;}
+  .stats-label{font-size:12px;color:var(--gray-600);margin-top:4px;}
+  .stats-bar-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+  .stats-bar-label{width:110px;flex-shrink:0;font-size:12px;color:var(--gray-600);text-align:right;}
+  .stats-bar-track{flex:1;background:var(--gray-100);border-radius:6px;height:22px;overflow:hidden;}
+  .stats-bar-fill{height:100%;border-radius:6px;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;box-sizing:border-box;color:#fff;font-size:11px;font-weight:600;white-space:nowrap;transition:width 0.4s ease;}
+
   /* Product autocomplete */
   .autocomplete-wrap{position:relative;}
   .suggestion-list{
@@ -303,6 +313,16 @@
       </div>
       <button class="btn btn-secondary" id="cleanupBtn" data-i18n="btn_cleanup" disabled style="margin-top:14px;">🧹 Clean Up Now</button>
       <div id="cleanupMsg" class="msg" style="margin-top:10px;"></div>
+
+      <div style="margin-top:20px;padding-top:20px;border-top:1px solid var(--gray-200);">
+        <p class="cleanup-desc" data-i18n="cleanup_all_desc">Or delete EVERY claim currently marked "Resolved - Claim Successful" right now, regardless of how recent — skips the 30-day wait entirely.</p>
+        <div class="checkbox-row">
+          <input type="checkbox" id="cleanupAllConfirm">
+          <label for="cleanupAllConfirm" data-i18n="cleanup_confirm_label">I understand this permanently deletes the sheet rows and their Drive photos</label>
+        </div>
+        <button class="btn btn-secondary" id="cleanupAllBtn" data-i18n="btn_cleanup_all" disabled style="margin-top:14px;">🗑️ Delete All Successful Claims Now</button>
+        <div id="cleanupAllMsg" class="msg" style="margin-top:10px;"></div>
+      </div>
     </div>
   </div>
 
@@ -365,6 +385,30 @@
 
   <!-- ========================= Page 4: Damage Analysis ========================= -->
   <div id="page4" class="page" style="display:none;">
+    <div class="card">
+      <h2 data-i18n="stats_h2">📈 Claim Status Summary</h2>
+      <button class="btn btn-secondary btn-small" id="statsRefreshBtn" data-i18n="btn_refresh" style="margin-bottom:14px;">🔄 Refresh</button>
+      <div id="statsMsg" class="msg"></div>
+      <div id="statsContent" style="display:none;">
+        <div class="stats-numbers">
+          <div class="stats-box">
+            <div class="stats-value" id="statOpen">0</div>
+            <div class="stats-label" data-i18n="stats_not_claimed">Not yet claimed</div>
+          </div>
+          <div class="stats-box">
+            <div class="stats-value" id="statPending">0</div>
+            <div class="stats-label" data-i18n="stats_in_progress">Claiming in progress</div>
+          </div>
+          <div class="stats-box">
+            <div class="stats-value" id="statSuccess">0</div>
+            <div class="stats-label" data-i18n="stats_claimed">Already claimed</div>
+          </div>
+        </div>
+        <div id="statsBarChart" style="margin-top:18px;"></div>
+        <p id="statsFootnote" style="font-size:12px;color:var(--gray-600);margin-top:12px;"></p>
+      </div>
+    </div>
+
     <div class="card">
       <h2 data-i18n="page4_h2">📊 Damage Analysis</h2>
       <label data-i18n="label_date_range_simple">Date Range (leave blank = all time)</label>
@@ -569,6 +613,8 @@ const TRANSLATIONS = {
     status_open: '🔴 Open', status_pending: '🟡 Pending Supplier Reply',
     status_success: '🟢 Resolved - Claim Successful', status_rejected: '⚫ Resolved - Rejected',
     cleanup_h2: '🧹 Clean Up Old Successful Claims',
+    cleanup_all_desc: 'Or delete EVERY claim currently marked "Resolved - Claim Successful" right now, regardless of how recent — skips the 30-day wait entirely.',
+    btn_cleanup_all: '🗑️ Delete All Successful Claims Now',
     cleanup_desc_html: 'Permanently deletes claims marked <strong>Resolved - Claim Successful</strong> once their Resolved Date is <strong>{days}</strong>+ days old — including their photos on Google Drive. This never runs by itself; it only happens when you click the button below.',
     cleanup_confirm_label: 'I understand this permanently deletes the sheet rows and their Drive photos',
     btn_cleanup: '🧹 Clean Up Now', btn_cleanup_running: 'Cleaning up...',
@@ -608,6 +654,11 @@ const TRANSLATIONS = {
     msg_load_suppliers_fail: '⚠️ Failed to load supplier list. Please check your CONFIG settings: {err}',
     msg_no_suppliers_found: '⚠️ No suppliers found in Supplier List — please add at least one row there before logging a defect',
 
+    stats_h2: '📈 Claim Status Summary',
+    stats_not_claimed: 'Not yet claimed',
+    stats_in_progress: 'Claiming in progress',
+    stats_claimed: 'Already claimed',
+    stats_footnote: '{current} still on record, {deleted} already cleaned up (but still counted here)',
     page4_h2: '📊 Damage Analysis',
     label_date_range_simple: 'Date Range (leave blank = all time)',
     chk_exclude_rejected: 'Exclude rejected claims from analysis',
@@ -680,6 +731,8 @@ const TRANSLATIONS = {
     status_open: '🔴 Terbuka', status_pending: '🟡 Menunggu Balasan Pembekal',
     status_success: '🟢 Selesai - Tuntutan Berjaya', status_rejected: '⚫ Selesai - Ditolak',
     cleanup_h2: '🧹 Bersihkan Tuntutan Berjaya Lama',
+    cleanup_all_desc: 'Atau padam SEMUA tuntutan yang ditanda "Selesai - Tuntutan Berjaya" sekarang, tidak kira berapa baru — langkau terus tempoh menunggu 30 hari.',
+    btn_cleanup_all: '🗑️ Padam Semua Tuntutan Berjaya Sekarang',
     cleanup_desc_html: 'Memadam secara kekal tuntutan bertanda <strong>Selesai - Tuntutan Berjaya</strong> apabila Tarikh Selesai sudah <strong>{days}</strong>+ hari — termasuk foto di Google Drive. Ini tidak berjalan sendiri; hanya berlaku apabila anda klik butang di bawah.',
     cleanup_confirm_label: 'Saya faham ini akan memadam kekal baris Sheet dan foto Drive berkaitan',
     btn_cleanup: '🧹 Bersihkan Sekarang', btn_cleanup_running: 'Sedang membersihkan...',
@@ -719,6 +772,11 @@ const TRANSLATIONS = {
     msg_load_suppliers_fail: '⚠️ Gagal memuatkan senarai pembekal. Sila semak tetapan CONFIG anda: {err}',
     msg_no_suppliers_found: '⚠️ Tiada pembekal dijumpai dalam Supplier List — sila tambah sekurang-kurangnya satu baris sebelum merekod kerosakan',
 
+    stats_h2: '📈 Ringkasan Status Tuntutan',
+    stats_not_claimed: 'Belum dituntut',
+    stats_in_progress: 'Tuntutan sedang diproses',
+    stats_claimed: 'Sudah dituntut',
+    stats_footnote: '{current} masih dalam rekod, {deleted} sudah dibersihkan (tetapi masih dikira di sini)',
     page4_h2: '📊 Analisis Kerosakan',
     label_date_range_simple: 'Julat Tarikh (kosongkan = sepanjang masa)',
     chk_exclude_rejected: 'Kecualikan tuntutan yang ditolak daripada analisis',
@@ -791,6 +849,8 @@ const TRANSLATIONS = {
     status_open: '🔴 Terbuka', status_pending: '🟡 Menunggu Balasan Pemasok',
     status_success: '🟢 Selesai - Klaim Berhasil', status_rejected: '⚫ Selesai - Ditolak',
     cleanup_h2: '🧹 Bersihkan Klaim Berhasil Lama',
+    cleanup_all_desc: 'Atau hapus SEMUA klaim yang saat ini bertanda "Selesai - Klaim Berhasil" sekarang, berapa pun barunya — lewati sepenuhnya masa tunggu 30 hari.',
+    btn_cleanup_all: '🗑️ Hapus Semua Klaim Berhasil Sekarang',
     cleanup_desc_html: 'Menghapus secara permanen klaim berstatus <strong>Selesai - Klaim Berhasil</strong> setelah Tanggal Selesai berusia <strong>{days}</strong>+ hari — termasuk foto di Google Drive. Ini tidak berjalan otomatis; hanya terjadi saat Anda mengklik tombol di bawah.',
     cleanup_confirm_label: 'Saya paham ini akan menghapus permanen baris Sheet dan foto Drive terkait',
     btn_cleanup: '🧹 Bersihkan Sekarang', btn_cleanup_running: 'Sedang membersihkan...',
@@ -830,6 +890,11 @@ const TRANSLATIONS = {
     msg_load_suppliers_fail: '⚠️ Gagal memuat daftar pemasok. Harap periksa pengaturan CONFIG Anda: {err}',
     msg_no_suppliers_found: '⚠️ Tidak ada pemasok ditemukan di Supplier List — harap tambahkan minimal satu baris sebelum mencatat kerusakan',
 
+    stats_h2: '📈 Ringkasan Status Klaim',
+    stats_not_claimed: 'Belum diklaim',
+    stats_in_progress: 'Klaim sedang diproses',
+    stats_claimed: 'Sudah diklaim',
+    stats_footnote: '{current} masih dalam catatan, {deleted} sudah dibersihkan (tapi tetap dihitung di sini)',
     page4_h2: '📊 Analisis Kerusakan',
     label_date_range_simple: 'Rentang Tanggal (kosongkan = sepanjang waktu)',
     chk_exclude_rejected: 'Kecualikan klaim yang ditolak dari analisis',
@@ -902,6 +967,8 @@ const TRANSLATIONS = {
     status_open: '🔴 Open', status_pending: '🟡 待供应商回复',
     status_success: '🟢 已解决 - 成功索赔', status_rejected: '⚫ 已解决 - 被拒绝',
     cleanup_h2: '🧹 清理旧的成功索赔记录',
+    cleanup_all_desc: '或者不管多新，现在就把所有标记为"已解决 - 成功索赔"的记录全部删掉——完全跳过30天的等待期。',
+    btn_cleanup_all: '🗑️ 立即删除所有成功索赔记录',
     cleanup_desc_html: '将永久删除标记为<strong>"已解决 - 成功索赔"</strong>且解决日期已满 <strong>{days}</strong> 天以上的记录 —— 包括 Google Drive 中的照片。此操作不会自动运行，只有点击下方按钮才会执行。',
     cleanup_confirm_label: '我明白这将永久删除表格行及其 Drive 照片',
     btn_cleanup: '🧹 立即清理', btn_cleanup_running: '清理中...',
@@ -941,6 +1008,11 @@ const TRANSLATIONS = {
     msg_load_suppliers_fail: '⚠️ 供应商列表加载失败，请检查 CONFIG 设置：{err}',
     msg_no_suppliers_found: '⚠️ Supplier List 里没有找到任何供应商——请先在表里加入至少一行供应商资料，才能记录损坏',
 
+    stats_h2: '📈 Claim 状态总览',
+    stats_not_claimed: '还没 Claim',
+    stats_in_progress: '正在 Claim',
+    stats_claimed: '已经 Claim',
+    stats_footnote: '{current} 笔目前还在记录里，{deleted} 笔已经被清理掉（但这里仍然算进去）',
     page4_h2: '📊 损坏分析',
     label_date_range_simple: '日期范围（留空 = 不限制）',
     chk_exclude_rejected: '分析中排除被拒绝的记录',
@@ -1013,6 +1085,7 @@ function refreshAllForLanguageChange() {
     buildReports(lastReportRows, lastReportSupplier || t('opt_all_suppliers'));
   }
   if (lastAnalysis) renderAnalysis();
+  if (lastStats) renderStats();
   if (productLoadFailed) {
     document.getElementById('productLoadMsg').textContent = t('msg_product_load_fail');
   }
@@ -1061,6 +1134,7 @@ const GAS_RUN_FUNCTIONS = {
   getProducts: 'apiGetProducts',
   getKitStructure: 'apiGetKitStructure',
   getClaims: 'apiGetClaims',
+  getStats: 'apiGetStats',
   addClaim: 'apiAddClaim',
   updateStatus: 'apiUpdateStatus',
   markReported: 'apiMarkReported',
@@ -1121,6 +1195,7 @@ document.querySelectorAll('.tab-btn').forEach(function (btn) {
     document.querySelectorAll('.page').forEach(function (p) { p.style.display = 'none'; });
     document.getElementById(btn.dataset.page).style.display = 'block';
     if (btn.dataset.page === 'page2') loadClaimsOverview();
+    if (btn.dataset.page === 'page4') loadStats();
   });
 });
 
@@ -2152,6 +2227,35 @@ document.getElementById('cleanupBtn').addEventListener('click', function () {
   });
 });
 
+document.getElementById('cleanupAllConfirm').addEventListener('change', function () {
+  document.getElementById('cleanupAllBtn').disabled = !this.checked;
+});
+
+document.getElementById('cleanupAllBtn').addEventListener('click', function () {
+  const btn = this;
+  const msgEl = document.getElementById('cleanupAllMsg');
+  btn.disabled = true;
+  btn.textContent = t('btn_cleanup_running');
+  msgEl.className = 'msg';
+
+  // days: 0 means "0+ days old" — i.e. every successful claim regardless of
+  // how recently it was resolved, skipping the normal 30-day wait entirely.
+  apiPost({ action: 'cleanupOldClaims', days: 0 }).then(function (res) {
+    if (res.error) throw new Error(res.error);
+    msgEl.className = 'msg show success';
+    msgEl.textContent = t('cleanup_success', { rows: res.deletedRows, folders: res.deletedFolders }) +
+      (res.errors && res.errors.length ? t('cleanup_partial', { n: res.errors.length }) : '');
+    document.getElementById('cleanupAllConfirm').checked = false;
+    loadClaimsOverview();
+  }).catch(function (err) {
+    msgEl.className = 'msg show error';
+    msgEl.textContent = t('cleanup_fail', { err: err.message });
+  }).finally(function () {
+    btn.disabled = true; // re-lock until the checkbox is ticked again
+    btn.textContent = t('btn_cleanup_all');
+  });
+});
+
 function renderClaimsOverview() {
   const showResolved = document.getElementById('showResolved').checked;
   const listEl = document.getElementById('claimsList');
@@ -2545,6 +2649,63 @@ function flashBtn(btnId, text) {
   const original = btn.textContent;
   btn.textContent = text;
   setTimeout(function () { btn.textContent = original; }, 2500);
+}
+
+/****************************************************************
+ * ============ Page 4: Claim Status Summary (unclaimed / in progress / claimed) ============
+ * "Already claimed" includes claims that have since been deleted via the
+ * cleanup features — Code.gs keeps a running total that survives row
+ * deletion specifically so this number never drops just because old rows
+ * were cleaned up.
+ ****************************************************************/
+let lastStats = null;
+
+function loadStats() {
+  const msgEl = document.getElementById('statsMsg');
+  const contentEl = document.getElementById('statsContent');
+  msgEl.className = 'msg show info';
+  msgEl.textContent = t('opt_loading');
+  contentEl.style.display = 'none';
+
+  apiGet('getStats').then(function (res) {
+    if (!res) throw new Error(t('err_no_data'));
+    if (res.error) throw new Error(res.error);
+    lastStats = res;
+    renderStats();
+    msgEl.className = 'msg';
+    contentEl.style.display = 'block';
+  }).catch(function (err) {
+    msgEl.className = 'msg show error';
+    msgEl.textContent = t('msg_load_claims_fail', { err: err.message });
+  });
+}
+
+document.getElementById('statsRefreshBtn').addEventListener('click', loadStats);
+
+function renderStats() {
+  if (!lastStats) return;
+  document.getElementById('statOpen').textContent = lastStats.open;
+  document.getElementById('statPending').textContent = lastStats.pending;
+  document.getElementById('statSuccess').textContent = lastStats.successTotal;
+
+  const max = Math.max(lastStats.open, lastStats.pending, lastStats.successTotal, 1);
+  const bars = [
+    { label: t('stats_not_claimed'), value: lastStats.open, color: 'var(--danger)' },
+    { label: t('stats_in_progress'), value: lastStats.pending, color: 'var(--warning)' },
+    { label: t('stats_claimed'), value: lastStats.successTotal, color: 'var(--success)' }
+  ];
+
+  document.getElementById('statsBarChart').innerHTML = bars.map(function (b) {
+    const pct = Math.round((b.value / max) * 100);
+    return '<div class="stats-bar-row">' +
+      '<div class="stats-bar-label">' + escapeHtml(b.label) + '</div>' +
+      '<div class="stats-bar-track"><div class="stats-bar-fill" style="width:' + pct + '%;background:' + b.color + ';">' + b.value + '</div></div>' +
+      '</div>';
+  }).join('');
+
+  document.getElementById('statsFootnote').textContent = t('stats_footnote', {
+    current: lastStats.successCurrent, deleted: lastStats.successDeleted
+  });
 }
 
 /****************************************************************
