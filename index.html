@@ -245,8 +245,12 @@
         <span id="driveConnectStatus"></span>
         <button type="button" class="btn btn-small" id="driveConnectBtn" style="margin-top:8px;"></button>
       </div>
+      <div id="driveIdentityNote" class="msg"></div>
 
       <input type="hidden" id="f_supplier">
+
+      <label data-i18n="label_your_name">Your Name (optional — records who logged this claim)</label>
+      <input type="text" id="f_yourName" data-i18n-placeholder="ph_your_name" placeholder="e.g. Ali">
 
       <label data-i18n="label_product">Product Name *</label>
       <div class="autocomplete-wrap">
@@ -618,6 +622,9 @@ const TRANSLATIONS = {
     drive_not_connected: 'Connect Google Drive for faster uploads and full video quality (optional)',
     drive_connect: 'Connect Google Drive',
     drive_reconnect: 'Reconnect',
+    drive_identity_note: '✓ This claim will be recorded as logged by: {email}',
+    label_your_name: 'Your Name (optional — records who logged this claim)',
+    ph_your_name: 'e.g. Ali',
     gallery_button_title: 'Choose from gallery',
     video_camera_button_title: 'Record in-app (better quality)',
     video_camera_title: 'Record Video',
@@ -749,6 +756,9 @@ const TRANSLATIONS = {
     drive_not_connected: 'Sambungkan Google Drive untuk muat naik lebih pantas dan kualiti video penuh (pilihan)',
     drive_connect: 'Sambungkan Google Drive',
     drive_reconnect: 'Sambung Semula',
+    drive_identity_note: '✓ Tuntutan ini akan direkodkan sebagai dilaporkan oleh: {email}',
+    label_your_name: 'Nama Anda (pilihan — merekod siapa yang melaporkan tuntutan ini)',
+    ph_your_name: 'cth: Ali',
     gallery_button_title: 'Pilih dari galeri',
     video_camera_button_title: 'Rakam dalam App (kualiti lebih baik)',
     video_camera_title: 'Rakam Video',
@@ -880,6 +890,9 @@ const TRANSLATIONS = {
     drive_not_connected: 'Hubungkan Google Drive untuk unggahan lebih cepat dan kualitas video penuh (opsional)',
     drive_connect: 'Hubungkan Google Drive',
     drive_reconnect: 'Sambungkan Ulang',
+    drive_identity_note: '✓ Klaim ini akan dicatat sebagai dilaporkan oleh: {email}',
+    label_your_name: 'Nama Anda (opsional — mencatat siapa yang melaporkan klaim ini)',
+    ph_your_name: 'cth: Ali',
     gallery_button_title: 'Pilih dari galeri',
     video_camera_button_title: 'Rekam dalam App (kualitas lebih baik)',
     video_camera_title: 'Rekam Video',
@@ -1011,6 +1024,9 @@ const TRANSLATIONS = {
     drive_not_connected: '连接 Google Drive 可以让上传更快、视频保持原始画质（可选）',
     drive_connect: '连接 Google Drive',
     drive_reconnect: '重新连接',
+    drive_identity_note: '✓ 这笔记录会记录为由：{email} 提交',
+    label_your_name: '你的名字（可选——记录是谁提交这笔记录）',
+    ph_your_name: '例如：Ali',
     gallery_button_title: '从相册选择',
     video_camera_button_title: 'App 内录影（画质较好）',
     video_camera_title: '录制视频',
@@ -2083,6 +2099,8 @@ document.addEventListener('click', closeVideoAddMenu);
  ****************************************************************/
 const DRIVE_UPLOAD_TIMEOUT_MS = 90000; // videos aren't compressed on this path, so give it more room than a typical request
 
+let connectedUserEmail = null;
+
 function initGoogleAuth() {
   if (!CONFIG.GOOGLE_CLIENT_ID) return; // feature not configured — stays fully hidden
   if (!window.google || !google.accounts || !google.accounts.oauth2) {
@@ -2091,16 +2109,44 @@ function initGoogleAuth() {
   }
   tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: CONFIG.GOOGLE_CLIENT_ID,
-    scope: 'https://www.googleapis.com/auth/drive.file',
+    scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email',
     callback: function (response) {
       if (response && response.access_token) {
         driveAccessToken = response.access_token;
+        fetchConnectedUserEmail();
         updateDriveConnectUI();
       }
     }
   });
   document.getElementById('driveConnectBox').style.display = 'block';
   updateDriveConnectUI();
+}
+
+// Grabs the email of whichever Google account was just used to connect Drive —
+// this is what lets the app automatically record "who" logged a claim without
+// asking them to type their name, as long as they've connected Drive.
+function fetchConnectedUserEmail() {
+  if (!driveAccessToken) return;
+  fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+    headers: { 'Authorization': 'Bearer ' + driveAccessToken }
+  }).then(function (res) { return res.json(); }).then(function (data) {
+    connectedUserEmail = data.email || null;
+    updateDriveIdentityNote();
+  }).catch(function () {
+    connectedUserEmail = null;
+    updateDriveIdentityNote();
+  });
+}
+
+function updateDriveIdentityNote() {
+  const noteEl = document.getElementById('driveIdentityNote');
+  if (connectedUserEmail) {
+    noteEl.textContent = t('drive_identity_note', { email: connectedUserEmail });
+    noteEl.className = 'msg show info';
+  } else {
+    noteEl.className = 'msg';
+    noteEl.textContent = '';
+  }
 }
 
 function updateDriveConnectUI() {
@@ -2224,9 +2270,13 @@ document.getElementById('submitBtn').addEventListener('click', function () {
     btn.textContent = t('btn_submitting') + ' (' + secs + 's)';
   }, 1000);
 
+  // Prefer the connected Google account's email (only available if Drive is
+  // connected) — falls back to whatever they typed in "Your Name", if anything.
+  const submittedBy = connectedUserEmail || document.getElementById('f_yourName').value.trim();
+
   const claimData = {
     supplier: supplier, productName: productName, sku: sku, qty: qty,
-    defectType: defectType, description: description
+    defectType: defectType, description: description, submittedBy: submittedBy
   };
 
   submitClaim(claimData).then(function (res) {
@@ -3058,6 +3108,25 @@ function csvEscape(val) {
 }
 
 /****************************************************************
+ * ============ "Your Name" persistence ============
+ * Remembered locally so people don't have to retype it every visit — this is
+ * just the fallback identity used when Drive isn't connected; it's not
+ * validated or tied to any account.
+ ****************************************************************/
+const YOUR_NAME_STORAGE_KEY = 'claim_app_your_name';
+
+function loadYourName() {
+  try {
+    const saved = localStorage.getItem(YOUR_NAME_STORAGE_KEY);
+    if (saved) document.getElementById('f_yourName').value = saved;
+  } catch (e) { /* localStorage unavailable — just skip remembering it */ }
+}
+
+document.getElementById('f_yourName').addEventListener('input', function () {
+  try { localStorage.setItem(YOUR_NAME_STORAGE_KEY, this.value); } catch (e) { /* ignore */ }
+});
+
+/****************************************************************
  * ============ Init ============
  ****************************************************************/
 document.getElementById('langSwitcher').value = currentLang;
@@ -3068,6 +3137,7 @@ loadSuppliers();
 loadProducts();
 loadKits();
 initGoogleAuth();
+loadYourName();
 </script>
 </body>
 </html>
