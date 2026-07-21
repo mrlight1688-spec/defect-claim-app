@@ -260,6 +260,16 @@
       <div id="productLoadMsg" class="msg" style="margin-top:6px;font-size:12px;"></div>
       <button type="button" class="btn btn-secondary btn-small" id="scanQrBtn" style="margin-top:8px;">📷 <span data-i18n="btn_scan_qr">Scan QR Code</span></button>
 
+      <div id="kitPickerBox" class="msg info" style="display:none;">
+        <strong data-i18n="kit_picker_title">This is a kit — select which item(s) are affected:</strong>
+        <div id="kitPickerList" style="margin-top:10px;"></div>
+        <button type="button" class="btn btn-small" id="kitPickerConfirmBtn" data-i18n="btn_confirm_selection" style="margin-top:10px;">✓ Confirm Selection</button>
+      </div>
+      <div id="kitSelectedSummary" class="msg show info" style="display:none;">
+        <span id="kitSelectedSummaryText"></span>
+        <button type="button" class="btn btn-small btn-secondary" id="kitSelectedClearBtn" data-i18n="btn_clear_selection" style="margin-top:8px;">✕ Clear</button>
+      </div>
+
       <label data-i18n="label_sku">SKU (optional)</label>
       <div class="autocomplete-wrap">
         <input type="text" id="f_sku" autocomplete="off" data-i18n-placeholder="ph_sku" placeholder="e.g. BT-EARBUD-001">
@@ -599,6 +609,13 @@ const TRANSLATIONS = {
     opt_load_failed: '⚠️ Failed to load — check CONFIG',
     msg_product_load_fail: '⚠️ Could not load the product list — you can still type the product name manually',
     kit_contains_label: 'This kit contains:',
+    kit_picker_title: 'This is a kit — select which item(s) are affected:',
+    btn_confirm_selection: '✓ Confirm Selection',
+    btn_clear_selection: '✕ Clear',
+    kit_selected_count: '{count} items selected',
+    submitting_item_progress: 'Item {current} of {total}',
+    msg_submit_success_multi: '✓ Submitted {count} claims: {ids}.',
+    msg_submit_partial_fail: '⚠️ {count} item(s) failed: {items}.',
     label_product: 'Product Name *', ph_product: 'Type to search your inventory, or enter a new product',
     more_matches_hint: '+ {n} more match(es) — keep typing to narrow it down',
     label_sku: 'SKU (optional)', ph_sku: 'e.g. BT-EARBUD-001',
@@ -733,6 +750,13 @@ const TRANSLATIONS = {
     opt_load_failed: '⚠️ Gagal memuatkan — semak CONFIG',
     msg_product_load_fail: '⚠️ Tidak dapat memuatkan senarai produk — anda masih boleh menaip nama produk secara manual',
     kit_contains_label: 'Kit ini mengandungi:',
+    kit_picker_title: 'Ini adalah kit — pilih item mana yang terjejas:',
+    btn_confirm_selection: '✓ Sahkan Pilihan',
+    btn_clear_selection: '✕ Kosongkan',
+    kit_selected_count: '{count} item dipilih',
+    submitting_item_progress: 'Item {current} daripada {total}',
+    msg_submit_success_multi: '✓ {count} tuntutan dihantar: {ids}.',
+    msg_submit_partial_fail: '⚠️ {count} item gagal: {items}.',
     label_product: 'Nama Produk *', ph_product: 'Taip untuk cari dalam inventori, atau masukkan produk baharu',
     more_matches_hint: '+ {n} lagi hasil — taip lebih lanjut untuk mempersempit carian',
     label_sku: 'SKU (pilihan)', ph_sku: 'cth: BT-EARBUD-001',
@@ -867,6 +891,13 @@ const TRANSLATIONS = {
     opt_load_failed: '⚠️ Gagal memuat — periksa CONFIG',
     msg_product_load_fail: '⚠️ Tidak dapat memuat daftar produk — Anda tetap bisa mengetik nama produk secara manual',
     kit_contains_label: 'Kit ini berisi:',
+    kit_picker_title: 'Ini adalah kit — pilih item mana yang terpengaruh:',
+    btn_confirm_selection: '✓ Konfirmasi Pilihan',
+    btn_clear_selection: '✕ Hapus',
+    kit_selected_count: '{count} item dipilih',
+    submitting_item_progress: 'Item {current} dari {total}',
+    msg_submit_success_multi: '✓ {count} klaim terkirim: {ids}.',
+    msg_submit_partial_fail: '⚠️ {count} item gagal: {items}.',
     label_product: 'Nama Produk *', ph_product: 'Ketik untuk mencari di inventaris, atau masukkan produk baru',
     more_matches_hint: '+ {n} hasil lagi — ketik lebih lanjut untuk mempersempit pencarian',
     label_sku: 'SKU (opsional)', ph_sku: 'cth: BT-EARBUD-001',
@@ -1001,6 +1032,13 @@ const TRANSLATIONS = {
     opt_load_failed: '⚠️ 加载失败——请检查 CONFIG 设置',
     msg_product_load_fail: '⚠️ 产品清单加载失败——你仍然可以手动输入产品名称',
     kit_contains_label: '这个 kit 包含：',
+    kit_picker_title: '这是一个 kit——请选择受影响的 item：',
+    btn_confirm_selection: '✓ 确认选择',
+    btn_clear_selection: '✕ 清除',
+    kit_selected_count: '已选 {count} 项',
+    submitting_item_progress: '第 {current}／{total} 项',
+    msg_submit_success_multi: '✓ 已提交 {count} 笔记录：{ids}。',
+    msg_submit_partial_fail: '⚠️ {count} 项失败：{items}。',
     label_product: '产品名称 *', ph_product: '输入以搜索库存产品，或手动输入新产品',
     more_matches_hint: '还有 {n} 项结果，输入更多关键字可缩小范围',
     label_sku: 'SKU（可选）', ph_sku: '例如：BT-EARBUD-001',
@@ -1878,19 +1916,84 @@ function handleQRResult(text) {
     });
   }
 
-  if (match) {
-    document.getElementById('f_product').value = match.name;
-    document.getElementById('f_sku').value = match.sku;
-    checkKitInfo();
-    showMsg('msg1', t('qr_scan_matched', { name: match.name }), 'success');
-  } else {
+  if (!match) {
     // No match in the Product List — keep the scanned text (in case it's a
     // valid SKU that just isn't in Product List yet) and let the person fill
     // in / search the Product Name themselves.
     document.getElementById('f_sku').value = trimmed;
     showMsg('msg1', t('qr_scan_no_match', { text: trimmed }), 'info');
+    return;
+  }
+
+  // Is the matched SKU actually a kit? If so, show its component items as a
+  // multi-select checklist instead of filling Product Name/SKU directly —
+  // the person picks which specific item(s) within the kit are the ones
+  // that are actually defective.
+  const kitKey = Object.keys(kitStructureCache).find(function (k) { return k.toLowerCase() === match.sku.toLowerCase(); });
+  const kit = kitKey ? kitStructureCache[kitKey] : null;
+
+  if (kit && kit.items && kit.items.length > 0) {
+    showKitPicker(kit);
+    showMsg('msg1', t('qr_scan_matched', { name: match.name }), 'success');
+  } else {
+    document.getElementById('f_product').value = match.name;
+    document.getElementById('f_sku').value = match.sku;
+    checkKitInfo();
+    showMsg('msg1', t('qr_scan_matched', { name: match.name }), 'success');
   }
 }
+
+/****************************************************************
+ * ============ Kit item multi-select (after scanning a kit's QR code) ============
+ * Lets the person pick one or more of the kit's actual component items — at
+ * submit time, each selected item becomes its OWN separate claim record
+ * (sharing the same Qty/Defect Type/Description/photos/videos entered once),
+ * rather than being bundled into a single row — that keeps the Analysis
+ * page's per-product totals accurate, since it expects one product per row.
+ ****************************************************************/
+let selectedKitItems = [];
+
+function showKitPicker(kit) {
+  const box = document.getElementById('kitPickerBox');
+  const listEl = document.getElementById('kitPickerList');
+  listEl.innerHTML = kit.items.map(function (it, idx) {
+    const label = escapeHtml(it.name) + (it.sku ? ' (SKU: ' + escapeHtml(it.sku) + ')' : '');
+    return '<div class="checkbox-row">' +
+      '<input type="checkbox" id="kitPickItem' + idx + '" data-name="' + escapeHtml(it.name) + '" data-sku="' + escapeHtml(it.sku || '') + '">' +
+      '<label for="kitPickItem' + idx + '">' + label + '</label>' +
+      '</div>';
+  }).join('');
+  box.style.display = 'block';
+  document.getElementById('kitSelectedSummary').style.display = 'none';
+}
+
+document.getElementById('kitPickerConfirmBtn').addEventListener('click', function () {
+  const checked = Array.from(document.querySelectorAll('#kitPickerList input[type="checkbox"]:checked'));
+  if (checked.length === 0) return;
+
+  selectedKitItems = checked.map(function (cb) {
+    return { name: cb.dataset.name, sku: cb.dataset.sku };
+  });
+
+  document.getElementById('kitPickerBox').style.display = 'none';
+  const summaryText = selectedKitItems.length === 1
+    ? selectedKitItems[0].name
+    : t('kit_selected_count', { count: selectedKitItems.length }) + ': ' + selectedKitItems.map(function (it) { return it.name; }).join(', ');
+  document.getElementById('kitSelectedSummaryText').textContent = summaryText;
+  document.getElementById('kitSelectedSummary').style.display = 'block';
+
+  // Clear the regular Product Name/SKU fields — the selected items are what
+  // will actually be submitted, not whatever's typed in those fields.
+  document.getElementById('f_product').value = '';
+  document.getElementById('f_sku').value = '';
+  document.getElementById('kitInfoBox').className = 'msg';
+  document.getElementById('kitInfoBox').innerHTML = '';
+});
+
+document.getElementById('kitSelectedClearBtn').addEventListener('click', function () {
+  selectedKitItems = [];
+  document.getElementById('kitSelectedSummary').style.display = 'none';
+});
 
 // Attempts to re-encode a video file at a lower bitrate using the browser's own
 // playback + capture pipeline. ALWAYS resolves (never rejects) — on any failure,
@@ -2263,13 +2366,18 @@ function extForVideoMimeClient(mimeType) {
  ****************************************************************/
 document.getElementById('submitBtn').addEventListener('click', function () {
   const supplier = document.getElementById('f_supplier').value;
-  const productName = document.getElementById('f_product').value.trim();
-  const sku = document.getElementById('f_sku').value.trim();
   const qty = document.getElementById('f_qty').value;
   const defectType = document.getElementById('f_type').value;
   const description = document.getElementById('f_desc').value.trim();
 
-  if (!supplier || !productName || !qty) {
+  // Multi-item mode: one or more kit component items were picked via QR scan.
+  // Each becomes its own separate claim record, sharing everything else
+  // entered on the form (Qty/Defect Type/Description/photos/videos).
+  const isMultiMode = selectedKitItems.length > 0;
+  const productName = isMultiMode ? '' : document.getElementById('f_product').value.trim();
+  const sku = isMultiMode ? '' : document.getElementById('f_sku').value.trim();
+
+  if (!supplier || (!isMultiMode && !productName) || !qty) {
     showMsg('msg1', t('msg_fill_required'), 'error');
     return;
   }
@@ -2277,25 +2385,63 @@ document.getElementById('submitBtn').addEventListener('click', function () {
   const btn = document.getElementById('submitBtn');
   btn.disabled = true;
   const submitStartTime = Date.now();
+  let currentItemProgress = '';
   btn.textContent = t('btn_submitting');
   // Videos in particular can take a while to upload — showing elapsed seconds
   // makes it clear the button is actively working rather than stuck/frozen.
   const submitTimerInterval = setInterval(function () {
     const secs = Math.floor((Date.now() - submitStartTime) / 1000);
-    btn.textContent = t('btn_submitting') + ' (' + secs + 's)';
+    btn.textContent = (currentItemProgress ? currentItemProgress + ' — ' : '') + t('btn_submitting') + ' (' + secs + 's)';
   }, 1000);
 
   // Prefer the connected Google account's email (only available if Drive is
   // connected) — falls back to whatever they typed in "Your Name", if anything.
   const submittedBy = connectedUserEmail || document.getElementById('f_yourName').value.trim();
 
-  const claimData = {
-    supplier: supplier, productName: productName, sku: sku, qty: qty,
-    defectType: defectType, description: description, submittedBy: submittedBy
+  const baseClaimData = {
+    supplier: supplier, qty: qty, defectType: defectType, description: description, submittedBy: submittedBy
   };
 
-  submitClaim(claimData).then(function (res) {
-    showMsg('msg1', t('msg_submit_success', { id: res.claimId, count: res.photoCount, videoCount: res.videoCount }), 'success');
+  const itemsToSubmit = isMultiMode ? selectedKitItems : [{ name: productName, sku: sku }];
+  const results = [];
+  const failures = [];
+
+  // Submitted one at a time (not in parallel) — keeps Claim ID assignment
+  // safe and makes it straightforward to report exactly which item(s), if
+  // any, failed.
+  function submitNext(idx) {
+    if (idx >= itemsToSubmit.length) return Promise.resolve();
+    const item = itemsToSubmit[idx];
+    if (itemsToSubmit.length > 1) {
+      currentItemProgress = t('submitting_item_progress', { current: idx + 1, total: itemsToSubmit.length });
+    }
+    const claimData = Object.assign({}, baseClaimData, { productName: item.name, sku: item.sku || '' });
+    return submitClaim(claimData).then(function (res) {
+      results.push(res);
+    }).catch(function (err) {
+      failures.push({ name: item.name, err: err.message });
+    }).then(function () {
+      return submitNext(idx + 1);
+    });
+  }
+
+  submitNext(0).then(function () {
+    if (results.length === 0) {
+      throw new Error(failures.map(function (f) { return f.name + ': ' + f.err; }).join('; '));
+    }
+
+    if (itemsToSubmit.length === 1) {
+      const res = results[0];
+      showMsg('msg1', t('msg_submit_success', { id: res.claimId, count: res.photoCount, videoCount: res.videoCount }), 'success');
+    } else {
+      const ids = results.map(function (r) { return r.claimId; }).join(', ');
+      let msg = t('msg_submit_success_multi', { count: results.length, ids: ids });
+      if (failures.length > 0) {
+        msg += ' ' + t('msg_submit_partial_fail', { count: failures.length, items: failures.map(function (f) { return f.name; }).join(', ') });
+      }
+      showMsg('msg1', msg, failures.length > 0 ? 'info' : 'success');
+    }
+
     // Clear the form (supplier stays as-is — it's a hidden field auto-filled from Supplier List)
     document.getElementById('f_product').value = '';
     document.getElementById('f_sku').value = '';
@@ -2311,6 +2457,8 @@ document.getElementById('submitBtn').addEventListener('click', function () {
     skuSuggestions.innerHTML = '';
     document.getElementById('kitInfoBox').className = 'msg';
     document.getElementById('kitInfoBox').innerHTML = '';
+    selectedKitItems = [];
+    document.getElementById('kitSelectedSummary').style.display = 'none';
   }).catch(function (err) {
     showMsg('msg1', t('msg_submit_fail', { err: err.message }), 'error');
   }).finally(function () {
