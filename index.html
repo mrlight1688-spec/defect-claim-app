@@ -3439,6 +3439,18 @@ loadProducts();
 loadKits();
 initGoogleAuth();
 loadYourName();
+
+// Some mobile browsers (notably Safari) restore how the page LOOKED on a
+// refresh/back-navigation without necessarily re-running everything the same
+// way JS state gets reset — this showed up as the kit-selection summary box
+// staying visible with old text even though `selectedKitItems` was actually
+// back to empty. Forcing these back to their true (empty/hidden) state here
+// keeps what's on screen honest about what will actually be submitted.
+selectedKitItems = [];
+document.getElementById('kitPickerBox').style.display = 'none';
+document.getElementById('kitPickerList').innerHTML = '';
+document.getElementById('kitSelectedSummary').style.display = 'none';
+document.getElementById('kitSelectedSummaryText').textContent = '';
 </script>
 </body>
 </html>
