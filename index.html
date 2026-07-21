@@ -2405,6 +2405,11 @@ document.getElementById('submitBtn').addEventListener('click', function () {
   const itemsToSubmit = isMultiMode ? selectedKitItems : [{ name: productName, sku: sku }];
   const results = [];
   const failures = [];
+  // Captured from the FIRST item's upload (in a multi-item batch) and reused
+  // for every subsequent item, so the same photos/videos aren't uploaded
+  // again into a separate folder for each one — they all just point at the
+  // same files.
+  let sharedMediaUrls = null;
 
   // Submitted one at a time (not in parallel) — keeps Claim ID assignment
   // safe and makes it straightforward to report exactly which item(s), if
@@ -2416,8 +2421,12 @@ document.getElementById('submitBtn').addEventListener('click', function () {
       currentItemProgress = t('submitting_item_progress', { current: idx + 1, total: itemsToSubmit.length });
     }
     const claimData = Object.assign({}, baseClaimData, { productName: item.name, sku: item.sku || '' });
-    return submitClaim(claimData).then(function (res) {
+    const useShared = itemsToSubmit.length > 1 && idx > 0 ? sharedMediaUrls : null;
+    return submitClaim(claimData, useShared).then(function (res) {
       results.push(res);
+      if (itemsToSubmit.length > 1 && idx === 0) {
+        sharedMediaUrls = { photoUrls: res.photoUrls || [], videoUrls: res.videoUrls || [] };
+      }
     }).catch(function (err) {
       failures.push({ name: item.name, err: err.message });
     }).then(function () {
@@ -2475,26 +2484,39 @@ document.getElementById('submitBtn').addEventListener('click', function () {
 // standard base64-via-Apps-Script path (with video compression) if that
 // fails for any reason, so a claim never fails to submit just because the
 // speed/quality optimization didn't work on this particular device/network.
-function submitClaim(claimData) {
+function submitClaim(claimData, sharedMediaUrls) {
   const hasMedia = photoList.length > 0 || videoList.length > 0;
-  const canDirectUpload = !!(CONFIG.GOOGLE_CLIENT_ID && driveAccessToken) && hasMedia;
+  const canDirectUpload = !!(CONFIG.GOOGLE_CLIENT_ID && driveAccessToken) && (hasMedia || sharedMediaUrls);
 
   if (!canDirectUpload) {
-    return submitLegacy(claimData);
+    return submitLegacy(claimData, sharedMediaUrls);
   }
-  return submitFast(claimData).catch(function (err) {
+  return submitFast(claimData, sharedMediaUrls).catch(function (err) {
     console.error('Direct Drive upload failed, falling back to the standard method:', err);
-    return submitLegacy(claimData);
+    return submitLegacy(claimData, sharedMediaUrls);
   });
 }
 
 // Fast path: reserve a Claim ID, upload each photo/video straight to Drive
 // (in parallel, at full original quality — no compression needed since this
 // isn't going through the slower base64 route), then finalize the row.
-function submitFast(claimData) {
+// If sharedMediaUrls is given (used when submitting multiple items from the
+// same kit scan together), the upload step is skipped entirely — this claim
+// just points at the same already-uploaded files instead of duplicating them.
+function submitFast(claimData, sharedMediaUrls) {
   return apiPost({ action: 'reserveClaimId' }).then(function (res) {
     if (res.error) throw new Error(res.error);
     const claimId = res.claimId;
+
+    if (sharedMediaUrls) {
+      return apiPost(Object.assign(
+        { action: 'finalizeClaim', claimId: claimId, photoUrls: sharedMediaUrls.photoUrls, videoUrls: sharedMediaUrls.videoUrls },
+        claimData
+      )).then(function (finalizeRes) {
+        if (finalizeRes.error) throw new Error(finalizeRes.error);
+        return Object.assign({}, finalizeRes, sharedMediaUrls);
+      });
+    }
 
     return getOrCreateDriveFolder(claimId).then(function (folderId) {
       const photoUploads = photoList.map(function (p, idx) {
@@ -2523,7 +2545,7 @@ function submitFast(claimData) {
           claimData
         )).then(function (finalizeRes) {
           if (finalizeRes.error) throw new Error(finalizeRes.error);
-          return finalizeRes;
+          return Object.assign({}, finalizeRes, { photoUrls: photoUrls, videoUrls: videoUrls });
         });
       });
     });
@@ -2532,8 +2554,20 @@ function submitFast(claimData) {
 
 // Standard path: everything goes through Apps Script as base64 in one bundled
 // call. Videos are compressed here (lazily, only now that we know we actually
-// need it) to keep that bundled call a reasonable size.
-function submitLegacy(claimData) {
+// need it) to keep that bundled call a reasonable size. If sharedMediaUrls is
+// given, skips compression/base64/upload entirely — this claim just points
+// at files already uploaded for an earlier item in the same batch.
+function submitLegacy(claimData, sharedMediaUrls) {
+  if (sharedMediaUrls) {
+    return apiPost(Object.assign(
+      { action: 'addClaim', sharedPhotoUrls: sharedMediaUrls.photoUrls, sharedVideoUrls: sharedMediaUrls.videoUrls },
+      claimData
+    )).then(function (res) {
+      if (res.error) throw new Error(res.error);
+      return Object.assign({}, res, sharedMediaUrls);
+    });
+  }
+
   const msgEl = document.getElementById('videoCompressMsg');
 
   const videoPayloadPromises = videoList.map(function (v) {
@@ -2561,7 +2595,7 @@ function submitLegacy(claimData) {
     ));
   }).then(function (res) {
     if (res.error) throw new Error(res.error);
-    return res;
+    return res; // includes photoUrls/videoUrls, from Code.gs's addClaim response
   });
 }
 
