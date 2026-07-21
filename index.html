@@ -640,6 +640,7 @@ const TRANSLATIONS = {
     drive_connect: 'Connect Google Drive',
     drive_reconnect: 'Reconnect',
     drive_identity_note: '✓ This claim will be recorded as logged by: {email}',
+    drive_token_expired_notice: 'ℹ️ Your Google Drive connection expired — reconnect above for faster uploads and full video quality (everything still works fine without it, just slower).',
     label_your_name: 'Your Name (optional — records who logged this claim)',
     ph_your_name: 'e.g. Ali',
     gallery_button_title: 'Choose from gallery',
@@ -781,6 +782,7 @@ const TRANSLATIONS = {
     drive_connect: 'Sambungkan Google Drive',
     drive_reconnect: 'Sambung Semula',
     drive_identity_note: '✓ Tuntutan ini akan direkodkan sebagai dilaporkan oleh: {email}',
+    drive_token_expired_notice: 'ℹ️ Sambungan Google Drive anda telah tamat tempoh — sambung semula di atas untuk muat naik lebih pantas dan kualiti video penuh (semuanya masih berfungsi tanpanya, cuma lebih perlahan).',
     label_your_name: 'Nama Anda (pilihan — merekod siapa yang melaporkan tuntutan ini)',
     ph_your_name: 'cth: Ali',
     gallery_button_title: 'Pilih dari galeri',
@@ -922,6 +924,7 @@ const TRANSLATIONS = {
     drive_connect: 'Hubungkan Google Drive',
     drive_reconnect: 'Sambungkan Ulang',
     drive_identity_note: '✓ Klaim ini akan dicatat sebagai dilaporkan oleh: {email}',
+    drive_token_expired_notice: 'ℹ️ Koneksi Google Drive Anda telah kedaluwarsa — sambungkan kembali di atas untuk unggahan lebih cepat dan kualitas video penuh (semuanya tetap berfungsi tanpanya, hanya lebih lambat).',
     label_your_name: 'Nama Anda (opsional — mencatat siapa yang melaporkan klaim ini)',
     ph_your_name: 'cth: Ali',
     gallery_button_title: 'Pilih dari galeri',
@@ -1063,6 +1066,7 @@ const TRANSLATIONS = {
     drive_connect: '连接 Google Drive',
     drive_reconnect: '重新连接',
     drive_identity_note: '✓ 这笔记录会记录为由：{email} 提交',
+    drive_token_expired_notice: 'ℹ️ Google Drive 连接已过期——上面重新连接可以恢复更快的上传和原始画质（不重连也完全能用，只是会比较慢）。',
     label_your_name: '你的名字（可选——记录是谁提交这笔记录）',
     ph_your_name: '例如：Ali',
     gallery_button_title: '从相册选择',
@@ -1273,7 +1277,8 @@ const GAS_RUN_FUNCTIONS = {
   cleanupOldClaims: 'apiCleanupOldClaims',
   deleteClaimNow: 'apiDeleteClaimNow',
   translateBatch: 'apiTranslateBatch',
-  resetCumulativeStats: 'apiResetCumulativeStats'
+  resetCumulativeStats: 'apiResetCumulativeStats',
+  renameSharedFolder: 'apiRenameSharedFolder'
 };
 
 function callGoogleScriptRun(action, params) {
@@ -1953,16 +1958,24 @@ function handleQRResult(text) {
  ****************************************************************/
 let selectedKitItems = [];
 
+let kitPickerRenderCount = 0; // ensures fresh, non-colliding checkbox ids each time a kit is scanned — some browsers restore checked-state based on matching ids even after innerHTML is replaced
+
 function showKitPicker(kit) {
   const box = document.getElementById('kitPickerBox');
   const listEl = document.getElementById('kitPickerList');
+  kitPickerRenderCount++;
+  const renderId = kitPickerRenderCount;
   listEl.innerHTML = kit.items.map(function (it, idx) {
     const label = escapeHtml(it.name) + (it.sku ? ' (SKU: ' + escapeHtml(it.sku) + ')' : '');
+    const cbId = 'kitPickItem' + renderId + '_' + idx;
     return '<div class="checkbox-row">' +
-      '<input type="checkbox" id="kitPickItem' + idx + '" data-name="' + escapeHtml(it.name) + '" data-sku="' + escapeHtml(it.sku || '') + '">' +
-      '<label for="kitPickItem' + idx + '">' + label + '</label>' +
+      '<input type="checkbox" id="' + cbId + '" data-name="' + escapeHtml(it.name) + '" data-sku="' + escapeHtml(it.sku || '') + '">' +
+      '<label for="' + cbId + '">' + label + '</label>' +
       '</div>';
   }).join('');
+  // Belt-and-suspenders: explicitly force every checkbox unchecked, in case
+  // the browser tries to restore a previous checked state regardless.
+  listEl.querySelectorAll('input[type="checkbox"]').forEach(function (cb) { cb.checked = false; });
   box.style.display = 'block';
   document.getElementById('kitSelectedSummary').style.display = 'none';
 }
@@ -2218,6 +2231,80 @@ document.addEventListener('click', closeVideoAddMenu);
 const DRIVE_UPLOAD_TIMEOUT_MS = 90000; // videos aren't compressed on this path, so give it more room than a typical request
 
 let connectedUserEmail = null;
+let driveTokenExpiresAt = null;
+let driveAutoRefreshTimer = null;
+let driveExpiryCheckTimer = null;
+const DRIVE_TOKEN_STORAGE_KEY = 'claim_app_drive_token';
+
+// Saves the current token/expiry/email to localStorage — called whenever any
+// of them change, so a page refresh can restore a still-valid connection
+// instead of forcing a fresh reconnect. Google's tokens are capped at ~1 hour
+// regardless, so this only helps within that window, not beyond it.
+function saveDriveTokenToStorage() {
+  try {
+    if (!driveAccessToken || !driveTokenExpiresAt) {
+      localStorage.removeItem(DRIVE_TOKEN_STORAGE_KEY);
+      return;
+    }
+    localStorage.setItem(DRIVE_TOKEN_STORAGE_KEY, JSON.stringify({
+      token: driveAccessToken, expiresAt: driveTokenExpiresAt, email: connectedUserEmail
+    }));
+  } catch (e) { /* localStorage unavailable — just skip remembering it */ }
+}
+
+function loadDriveTokenFromStorage() {
+  try {
+    const raw = localStorage.getItem(DRIVE_TOKEN_STORAGE_KEY);
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    if (!data.token || !data.expiresAt || data.expiresAt <= Date.now()) {
+      localStorage.removeItem(DRIVE_TOKEN_STORAGE_KEY); // expired — don't restore it
+      return;
+    }
+    driveAccessToken = data.token;
+    driveTokenExpiresAt = data.expiresAt;
+    connectedUserEmail = data.email || null;
+    updateDriveIdentityNote();
+    scheduleDriveTokenRefresh();
+  } catch (e) { /* ignore — just means no restored connection */ }
+}
+
+// Tries to silently renew the token a few minutes before it expires — if the
+// browser still has an active Google session and remembers this app's prior
+// consent, this can succeed with NO popup or interaction at all. If it can't
+// (browser privacy settings blocking it, session expired, etc.), it simply
+// doesn't fire the tokenClient callback, and the safety-check timer below
+// notices the token never actually got renewed and lets the person know they
+// need to manually reconnect — rather than them only discovering it when a
+// submission unexpectedly falls back to the slower upload path.
+function scheduleDriveTokenRefresh() {
+  if (driveAutoRefreshTimer) clearTimeout(driveAutoRefreshTimer);
+  if (driveExpiryCheckTimer) clearTimeout(driveExpiryCheckTimer);
+  if (!driveTokenExpiresAt) return;
+
+  const expiryForThisToken = driveTokenExpiresAt;
+  const refreshDelay = Math.max(expiryForThisToken - (5 * 60 * 1000) - Date.now(), 0);
+
+  driveAutoRefreshTimer = setTimeout(function () {
+    if (!tokenClient) return;
+    tokenClient.requestAccessToken({ prompt: '' });
+  }, refreshDelay);
+
+  const checkDelay = Math.max(expiryForThisToken - Date.now(), 0) + 2000;
+  driveExpiryCheckTimer = setTimeout(function () {
+    // If driveTokenExpiresAt still points at this SAME (now-expired) token,
+    // the silent refresh attempt above didn't succeed.
+    if (driveTokenExpiresAt === expiryForThisToken && driveAccessToken) {
+      driveAccessToken = null;
+      driveTokenExpiresAt = null;
+      connectedUserEmail = null;
+      saveDriveTokenToStorage();
+      updateDriveConnectUI();
+      updateDriveIdentityNote();
+      showMsg('msg1', t('drive_token_expired_notice'), 'info');
+    }
+  }, checkDelay);
+}
 
 function initGoogleAuth() {
   if (!CONFIG.GOOGLE_CLIENT_ID) return; // feature not configured — stays fully hidden
@@ -2231,12 +2318,16 @@ function initGoogleAuth() {
     callback: function (response) {
       if (response && response.access_token) {
         driveAccessToken = response.access_token;
+        driveTokenExpiresAt = Date.now() + (response.expires_in || 3600) * 1000;
+        saveDriveTokenToStorage();
         fetchConnectedUserEmail();
         updateDriveConnectUI();
+        scheduleDriveTokenRefresh();
       }
     }
   });
   document.getElementById('driveConnectBox').style.display = 'block';
+  loadDriveTokenFromStorage(); // restore a still-valid connection from before this page load, if any
   updateDriveConnectUI();
 }
 
@@ -2250,6 +2341,7 @@ function fetchConnectedUserEmail() {
   }).then(function (res) { return res.json(); }).then(function (data) {
     connectedUserEmail = data.email || null;
     updateDriveIdentityNote();
+    saveDriveTokenToStorage();
   }).catch(function () {
     connectedUserEmail = null;
     updateDriveIdentityNote();
@@ -2449,6 +2541,18 @@ document.getElementById('submitBtn').addEventListener('click', function () {
         msg += ' ' + t('msg_submit_partial_fail', { count: failures.length, items: failures.map(function (f) { return f.name; }).join(', ') });
       }
       showMsg('msg1', msg, failures.length > 0 ? 'info' : 'success');
+
+      // Relabel the shared Drive folder to list every claim that uses it,
+      // so it's clear from Drive alone which records the photos/videos in
+      // there belong to. Best-effort — a failure here doesn't affect the
+      // claims themselves, which are already saved.
+      if (sharedMediaUrls && (sharedMediaUrls.photoUrls.length > 0 || sharedMediaUrls.videoUrls.length > 0) && results.length > 1) {
+        apiPost({
+          action: 'renameSharedFolder',
+          originalClaimId: results[0].claimId,
+          allClaimIds: results.map(function (r) { return r.claimId; })
+        }).catch(function (err) { console.error('Could not rename shared folder:', err); });
+      }
     }
 
     // Clear the form (supplier stays as-is — it's a hidden field auto-filled from Supplier List)
