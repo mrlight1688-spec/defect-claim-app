@@ -1280,6 +1280,9 @@ const GAS_RUN_FUNCTIONS = {
   getClaims: 'apiGetClaims',
   getStats: 'apiGetStats',
   addClaim: 'apiAddClaim',
+  reserveClaimId: 'apiReserveClaimId',
+  finalizeClaim: 'apiFinalizeClaim',
+  finalizeReservedClaimWithUpload: 'apiFinalizeReservedClaimWithUpload',
   updateStatus: 'apiUpdateStatus',
   markReported: 'apiMarkReported',
   cleanupOldClaims: 'apiCleanupOldClaims',
@@ -2634,84 +2637,21 @@ function submitClaim(claimData, sharedMediaUrls) {
     return submitLegacy(claimData, sharedMediaUrls);
   }
   return submitFast(claimData, sharedMediaUrls).catch(function (err) {
-    console.error('Direct Drive upload failed, falling back to the standard method:', err);
+    // This only fires if reserveClaimId() itself failed, before any row was
+    // ever created — submitFast() already handles an upload-step failure
+    // internally by retrying with the SAME reserved claim (see below), so
+    // this particular fallback can never create a duplicate/orphaned row.
+    console.error('Could not reserve a Claim ID via the fast path, falling back to the standard method:', err);
     return submitLegacy(claimData, sharedMediaUrls);
   });
 }
 
-// Fast path: reserve a Claim ID, upload each photo/video straight to Drive
-// (in parallel, at full original quality — no compression needed since this
-// isn't going through the slower base64 route), then finalize the row.
-// If sharedMediaUrls is given (used when submitting multiple items from the
-// same kit scan together), the upload step is skipped entirely — this claim
-// just points at the same already-uploaded files instead of duplicating them.
-function submitFast(claimData, sharedMediaUrls) {
-  return apiPost({ action: 'reserveClaimId' }).then(function (res) {
-    if (res.error) throw new Error(res.error);
-    const claimId = res.claimId;
-
-    if (sharedMediaUrls) {
-      return apiPost(Object.assign(
-        { action: 'finalizeClaim', claimId: claimId, photoUrls: sharedMediaUrls.photoUrls, videoUrls: sharedMediaUrls.videoUrls },
-        claimData
-      )).then(function (finalizeRes) {
-        if (finalizeRes.error) throw new Error(finalizeRes.error);
-        return Object.assign({}, finalizeRes, sharedMediaUrls);
-      });
-    }
-
-    return getOrCreateDriveFolder(claimId).then(function (folderId) {
-      const photoUploads = photoList.map(function (p, idx) {
-        return uploadBlobToDrive(dataUrlToBlob(p.data), claimId + '_' + (idx + 1) + '.jpg', folderId);
-      });
-      const videoUploads = videoList.map(function (v, idx) {
-        return uploadBlobToDrive(v.rawFile, claimId + '_video' + (idx + 1) + '.' + extForVideoMimeClient(v.mimeType), folderId);
-      });
-      const allUploads = photoUploads.concat(videoUploads);
-
-      return Promise.all(allUploads.map(function (p) {
-        return p.then(function (url) { return { ok: true, url: url }; }).catch(function (err) { return { ok: false, err: err }; });
-      })).then(function (results) {
-        // If every single upload failed, treat this as a full fast-path
-        // failure (triggers the fallback) rather than finalizing a claim
-        // with zero media attached.
-        if (allUploads.length > 0 && results.every(function (r) { return !r.ok; })) {
-          throw new Error('All direct uploads failed');
-        }
-
-        const photoUrls = results.slice(0, photoUploads.length).filter(function (r) { return r.ok; }).map(function (r) { return r.url; });
-        const videoUrls = results.slice(photoUploads.length).filter(function (r) { return r.ok; }).map(function (r) { return r.url; });
-
-        return apiPost(Object.assign(
-          { action: 'finalizeClaim', claimId: claimId, photoUrls: photoUrls, videoUrls: videoUrls },
-          claimData
-        )).then(function (finalizeRes) {
-          if (finalizeRes.error) throw new Error(finalizeRes.error);
-          return Object.assign({}, finalizeRes, { photoUrls: photoUrls, videoUrls: videoUrls });
-        });
-      });
-    });
-  });
-}
-
-// Standard path: everything goes through Apps Script as base64 in one bundled
-// call. Videos are compressed here (lazily, only now that we know we actually
-// need it) to keep that bundled call a reasonable size. If sharedMediaUrls is
-// given, skips compression/base64/upload entirely — this claim just points
-// at files already uploaded for an earlier item in the same batch.
-function submitLegacy(claimData, sharedMediaUrls) {
-  if (sharedMediaUrls) {
-    return apiPost(Object.assign(
-      { action: 'addClaim', sharedPhotoUrls: sharedMediaUrls.photoUrls, sharedVideoUrls: sharedMediaUrls.videoUrls },
-      claimData
-    )).then(function (res) {
-      if (res.error) throw new Error(res.error);
-      return Object.assign({}, res, sharedMediaUrls);
-    });
-  }
-
+// Compresses videos (lazily) and builds the base64 photo/video payload —
+// shared between submitLegacy (a brand-new claim) and submitFast's internal
+// fallback (reusing an already-reserved claim ID), so both go through
+// identical compression/encoding logic.
+function buildMediaPayload() {
   const msgEl = document.getElementById('videoCompressMsg');
-
   const videoPayloadPromises = videoList.map(function (v) {
     if (v.data) return Promise.resolve({ data: v.data, mimeType: v.mimeType, name: v.name });
     msgEl.textContent = t('msg_compressing_video');
@@ -2731,8 +2671,102 @@ function submitLegacy(claimData, sharedMediaUrls) {
   return Promise.all(videoPayloadPromises).then(function (videoPayload) {
     msgEl.className = 'msg';
     msgEl.textContent = '';
+    return { photos: photoList, videos: videoPayload };
+  });
+}
+
+// Uploads each photo/video for claimId straight to Drive (in parallel, full
+// original quality), then finalizes the row. Used by submitFast below.
+function attemptDirectDriveUpload(claimId, claimData) {
+  return getOrCreateDriveFolder(claimId).then(function (folderId) {
+    const photoUploads = photoList.map(function (p, idx) {
+      return uploadBlobToDrive(dataUrlToBlob(p.data), claimId + '_' + (idx + 1) + '.jpg', folderId);
+    });
+    const videoUploads = videoList.map(function (v, idx) {
+      return uploadBlobToDrive(v.rawFile, claimId + '_video' + (idx + 1) + '.' + extForVideoMimeClient(v.mimeType), folderId);
+    });
+    const allUploads = photoUploads.concat(videoUploads);
+
+    return Promise.all(allUploads.map(function (p) {
+      return p.then(function (url) { return { ok: true, url: url }; }).catch(function (err) { return { ok: false, err: err }; });
+    })).then(function (results) {
+      // If every single upload failed, treat this as a full failure (triggers
+      // the fallback below) rather than finalizing a claim with zero media.
+      if (allUploads.length > 0 && results.every(function (r) { return !r.ok; })) {
+        throw new Error('All direct uploads failed');
+      }
+
+      const photoUrls = results.slice(0, photoUploads.length).filter(function (r) { return r.ok; }).map(function (r) { return r.url; });
+      const videoUrls = results.slice(photoUploads.length).filter(function (r) { return r.ok; }).map(function (r) { return r.url; });
+
+      return apiPost(Object.assign(
+        { action: 'finalizeClaim', claimId: claimId, photoUrls: photoUrls, videoUrls: videoUrls },
+        claimData
+      )).then(function (finalizeRes) {
+        if (finalizeRes.error) throw new Error(finalizeRes.error);
+        return Object.assign({}, finalizeRes, { photoUrls: photoUrls, videoUrls: videoUrls });
+      });
+    });
+  });
+}
+
+// Fast path: reserve a Claim ID, then try uploading straight to Drive. If
+// sharedMediaUrls is given (multiple items from one kit scan), skips
+// uploading entirely and just points this claim at the already-uploaded
+// files. If the direct upload itself fails partway through, falls back to
+// the reliable base64-via-Apps-Script route for this SAME reserved claim
+// (finalizeReservedClaimWithUpload) — NOT a brand-new claim — so the
+// reserved row is always completed one way or another, never abandoned.
+function submitFast(claimData, sharedMediaUrls) {
+  return apiPost({ action: 'reserveClaimId' }).then(function (res) {
+    if (res.error) throw new Error(res.error);
+    const claimId = res.claimId;
+
+    if (sharedMediaUrls) {
+      return apiPost(Object.assign(
+        { action: 'finalizeClaim', claimId: claimId, photoUrls: sharedMediaUrls.photoUrls, videoUrls: sharedMediaUrls.videoUrls },
+        claimData
+      )).then(function (finalizeRes) {
+        if (finalizeRes.error) throw new Error(finalizeRes.error);
+        return Object.assign({}, finalizeRes, sharedMediaUrls);
+      });
+    }
+
+    return attemptDirectDriveUpload(claimId, claimData).catch(function (err) {
+      console.error('Direct Drive upload failed for ' + claimId + ', falling back to base64 upload for the SAME claim (not creating a new one):', err);
+      return buildMediaPayload().then(function (payload) {
+        return apiPost(Object.assign(
+          { action: 'finalizeReservedClaimWithUpload', claimId: claimId, photos: payload.photos, videos: payload.videos },
+          claimData
+        ));
+      }).then(function (res) {
+        if (res.error) throw new Error(res.error);
+        return res;
+      });
+    });
+  });
+}
+
+// Standard path: everything goes through Apps Script as base64 in one bundled
+// call, generating a brand-new Claim ID (safe here — this only runs when
+// Drive isn't connected at all, so no ID was ever reserved to abandon). If
+// sharedMediaUrls is given, skips compression/base64/upload entirely — this
+// claim just points at files already uploaded for an earlier item in the
+// same batch.
+function submitLegacy(claimData, sharedMediaUrls) {
+  if (sharedMediaUrls) {
     return apiPost(Object.assign(
-      { action: 'addClaim', photos: photoList, videos: videoPayload },
+      { action: 'addClaim', sharedPhotoUrls: sharedMediaUrls.photoUrls, sharedVideoUrls: sharedMediaUrls.videoUrls },
+      claimData
+    )).then(function (res) {
+      if (res.error) throw new Error(res.error);
+      return Object.assign({}, res, sharedMediaUrls);
+    });
+  }
+
+  return buildMediaPayload().then(function (payload) {
+    return apiPost(Object.assign(
+      { action: 'addClaim', photos: payload.photos, videos: payload.videos },
       claimData
     ));
   }).then(function (res) {
