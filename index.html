@@ -325,7 +325,10 @@
         <input type="checkbox" id="showResolved">
         <label for="showResolved" data-i18n="chk_show_resolved">Show Resolved claims (Successful / Rejected)</label>
       </div>
+      <label data-i18n="label_search_claims">Search by product name or SKU</label>
+      <input type="text" id="claimSearchBox" data-i18n-placeholder="ph_search_claims" placeholder="Type to filter...">
       <button class="btn btn-secondary btn-small" id="refreshBtn" data-i18n="btn_refresh" style="margin-top:12px;">🔄 Refresh</button>
+      <button class="btn btn-secondary btn-small" id="exportClaimsBtn" data-i18n="btn_export_excel" style="margin-top:12px;margin-left:8px;">📥 Export to Excel</button>
     </div>
     <div id="claimsList"></div>
 
@@ -497,6 +500,22 @@
   <div class="modal">
     <button class="close-x" id="modalClose">✕</button>
     <h3 id="modalTitle" data-i18n="modal_title_default">Update Claim Status</h3>
+    <label data-i18n="label_product">Product Name *</label>
+    <input type="text" id="m_productName">
+    <label data-i18n="label_sku">SKU (optional)</label>
+    <input type="text" id="m_sku">
+    <label data-i18n="label_qty">Qty Defective *</label>
+    <input type="number" id="m_qty" min="1">
+    <label data-i18n="label_defect_type">Defect Type *</label>
+    <select id="m_defectType">
+      <option value="Broken" data-i18n="defect_broken">Broken</option>
+      <option value="Defective" data-i18n="defect_defective">Defective</option>
+      <option value="Wrong Item" data-i18n="defect_wrong">Wrong Item</option>
+      <option value="Missing Parts" data-i18n="defect_missing">Missing Parts</option>
+      <option value="Others" data-i18n="defect_others">Others</option>
+    </select>
+    <label data-i18n="label_description">Description</label>
+    <textarea id="m_description"></textarea>
     <label data-i18n="label_status">Status</label>
     <select id="m_status">
       <option value="Open" data-i18n="status_open">🔴 Open</option>
@@ -545,6 +564,17 @@
     <canvas id="qrScannerCanvas" style="display:none;"></canvas>
     <p style="font-size:13px;color:var(--gray-600);text-align:center;margin-top:10px;" data-i18n="qr_scanner_hint">Point your camera at a QR code</p>
     <div id="qrScannerMsg" class="msg" style="margin-top:10px;"></div>
+  </div>
+</div>
+
+<!-- ========================= Possible-duplicate warning (shown before submitting, if a matching SKU/product was already logged today with an unresolved status) ========================= -->
+<div class="overlay" id="duplicateWarnOverlay">
+  <div class="modal">
+    <button class="close-x" id="duplicateWarnClose">✕</button>
+    <h3 data-i18n="duplicate_warn_title">⚠️ Possible Duplicate</h3>
+    <div id="duplicateWarnList" style="font-size:13px;color:var(--gray-700);"></div>
+    <button class="btn btn-secondary" id="duplicateWarnCancelBtn" data-i18n="btn_cancel" style="margin-top:16px;">Cancel</button>
+    <button class="btn" id="duplicateWarnContinueBtn" data-i18n="btn_submit_anyway" style="margin-top:10px;">Submit Anyway</button>
   </div>
 </div>
 
@@ -672,6 +702,13 @@ const TRANSLATIONS = {
 
     page2_h2: 'Claim Status Overview',
     chk_show_resolved: 'Show Resolved claims (Successful / Rejected)',
+    label_search_claims: 'Search by product name or SKU',
+    ph_search_claims: 'Type to filter...',
+    btn_export_excel: '📥 Export to Excel',
+    duplicate_warn_title: '⚠️ Possible Duplicate',
+    duplicate_warn_existing: 'already logged today as {id} (currently {status})',
+    btn_cancel: 'Cancel',
+    btn_submit_anyway: 'Submit Anyway',
     btn_refresh: '🔄 Refresh',
     empty_no_claims: 'No claims match the current filter',
     no_supplier_label: '(No supplier specified)',
@@ -814,6 +851,13 @@ const TRANSLATIONS = {
 
     page2_h2: 'Ringkasan Status Tuntutan',
     chk_show_resolved: 'Papar tuntutan Selesai (Berjaya / Ditolak)',
+    label_search_claims: 'Cari mengikut nama produk atau SKU',
+    ph_search_claims: 'Taip untuk tapis...',
+    btn_export_excel: '📥 Eksport ke Excel',
+    duplicate_warn_title: '⚠️ Kemungkinan Pertindihan',
+    duplicate_warn_existing: 'sudah direkodkan hari ini sebagai {id} (kini {status})',
+    btn_cancel: 'Batal',
+    btn_submit_anyway: 'Hantar Juga',
     btn_refresh: '🔄 Muat Semula',
     empty_no_claims: 'Tiada tuntutan sepadan dengan penapis semasa',
     no_supplier_label: '(Pembekal tidak dinyatakan)',
@@ -956,6 +1000,13 @@ const TRANSLATIONS = {
 
     page2_h2: 'Ringkasan Status Klaim',
     chk_show_resolved: 'Tampilkan klaim Selesai (Berhasil / Ditolak)',
+    label_search_claims: 'Cari berdasarkan nama produk atau SKU',
+    ph_search_claims: 'Ketik untuk menyaring...',
+    btn_export_excel: '📥 Ekspor ke Excel',
+    duplicate_warn_title: '⚠️ Kemungkinan Duplikat',
+    duplicate_warn_existing: 'sudah dicatat hari ini sebagai {id} (saat ini {status})',
+    btn_cancel: 'Batal',
+    btn_submit_anyway: 'Tetap Kirim',
     btn_refresh: '🔄 Segarkan',
     empty_no_claims: 'Tidak ada klaim yang cocok dengan filter saat ini',
     no_supplier_label: '(Pemasok tidak ditentukan)',
@@ -1098,6 +1149,13 @@ const TRANSLATIONS = {
 
     page2_h2: 'Claim 状态总览',
     chk_show_resolved: '显示已解决的记录（成功 / 被拒）',
+    label_search_claims: '按产品名称或 SKU 搜索',
+    ph_search_claims: '输入以筛选...',
+    btn_export_excel: '📥 汇出 Excel',
+    duplicate_warn_title: '⚠️ 可能重复记录',
+    duplicate_warn_existing: '今天已经记录过一次，编号 {id}（目前状态：{status}）',
+    btn_cancel: '取消',
+    btn_submit_anyway: '仍要提交',
     btn_refresh: '🔄 刷新数据',
     empty_no_claims: '暂无符合条件的 Claim 记录',
     no_supplier_label: '（未指定供应商）',
@@ -2515,6 +2573,77 @@ document.getElementById('submitBtn').addEventListener('click', function () {
     return;
   }
 
+  const itemsToSubmit = isMultiMode ? selectedKitItems : [{ name: productName, sku: sku }];
+
+  checkForDuplicateClaims(itemsToSubmit).then(function (duplicates) {
+    if (duplicates.length > 0) {
+      showDuplicateWarning(duplicates, function () {
+        proceedWithSubmission(itemsToSubmit, supplier, qty, defectType, description);
+      });
+    } else {
+      proceedWithSubmission(itemsToSubmit, supplier, qty, defectType, description);
+    }
+  });
+});
+
+// Flags items that match an EXISTING claim for the same SKU (or Product Name,
+// if no SKU) logged TODAY with a still-open status (Open / Pending Supplier
+// Reply) — a common accidental-double-entry scenario. Never blocks
+// submission outright, and never lets a failure in this check itself get in
+// the way of submitting — it's purely advisory.
+function checkForDuplicateClaims(itemsToSubmit) {
+  return apiGet('getClaims', {}).then(function (rows) {
+    if (!rows || rows.error) return [];
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const candidates = rows.filter(function (r) {
+      const status = r['Status'];
+      if (status !== 'Open' && status !== 'Pending Supplier Reply') return false;
+      const d = new Date(r['Date']);
+      if (isNaN(d.getTime())) return false;
+      return d.toISOString().slice(0, 10) === todayStr;
+    });
+
+    const duplicates = [];
+    itemsToSubmit.forEach(function (item) {
+      const match = candidates.find(function (r) {
+        if (item.sku) return String(r['SKU'] || '').toLowerCase() === String(item.sku).toLowerCase();
+        return String(r['Product Name'] || '').toLowerCase() === String(item.name).toLowerCase();
+      });
+      if (match) duplicates.push({ item: item, existing: match });
+    });
+    return duplicates;
+  }).catch(function () { return []; });
+}
+
+function showDuplicateWarning(duplicates, onContinue) {
+  const listEl = document.getElementById('duplicateWarnList');
+  listEl.innerHTML = duplicates.map(function (d) {
+    return '<p style="margin:8px 0;">' + escapeHtml(d.item.name) +
+      ' — ' + t('duplicate_warn_existing', { id: d.existing['Claim ID'], status: getStatusMeta(d.existing['Status']).label }) +
+      '</p>';
+  }).join('');
+
+  document.getElementById('duplicateWarnOverlay').classList.add('show');
+
+  const continueBtn = document.getElementById('duplicateWarnContinueBtn');
+  const cancelBtn = document.getElementById('duplicateWarnCancelBtn');
+  const closeBtn = document.getElementById('duplicateWarnClose');
+
+  function cleanup() {
+    document.getElementById('duplicateWarnOverlay').classList.remove('show');
+    continueBtn.removeEventListener('click', onContinueClick);
+    cancelBtn.removeEventListener('click', onCancelClick);
+    closeBtn.removeEventListener('click', onCancelClick);
+  }
+  function onContinueClick() { cleanup(); onContinue(); }
+  function onCancelClick() { cleanup(); }
+
+  continueBtn.addEventListener('click', onContinueClick);
+  cancelBtn.addEventListener('click', onCancelClick);
+  closeBtn.addEventListener('click', onCancelClick);
+}
+
+function proceedWithSubmission(itemsToSubmit, supplier, qty, defectType, description) {
   const btn = document.getElementById('submitBtn');
   btn.disabled = true;
   const submitStartTime = Date.now();
@@ -2535,7 +2664,6 @@ document.getElementById('submitBtn').addEventListener('click', function () {
     supplier: supplier, qty: qty, defectType: defectType, description: description, submittedBy: submittedBy
   };
 
-  const itemsToSubmit = isMultiMode ? selectedKitItems : [{ name: productName, sku: sku }];
   const results = [];
   const failures = [];
   // Captured from the FIRST item's upload (in a multi-item batch) and reused
@@ -2622,7 +2750,7 @@ document.getElementById('submitBtn').addEventListener('click', function () {
     btn.disabled = false;
     btn.textContent = t('btn_submit');
   });
-});
+}
 
 // If Google Drive is connected and there's media to send, tries the fast
 // direct-to-Drive path first (full quality, no base64) — falls back to the
@@ -2795,6 +2923,50 @@ function loadClaimsOverview() {
 
 document.getElementById('refreshBtn').addEventListener('click', loadClaimsOverview);
 document.getElementById('showResolved').addEventListener('change', renderClaimsOverview);
+document.getElementById('claimSearchBox').addEventListener('input', renderClaimsOverview);
+
+// Exports whatever is currently visible (respecting the search box and the
+// "show resolved" checkbox) — not the whole cache — so what you export
+// matches what you were just looking at.
+document.getElementById('exportClaimsBtn').addEventListener('click', function () {
+  const showResolved = document.getElementById('showResolved').checked;
+  const searchTerm = document.getElementById('claimSearchBox').value.trim().toLowerCase();
+
+  let rows = allClaimsCache || [];
+  if (!showResolved) {
+    rows = rows.filter(function (r) { return !isResolvedStatus(r['Status']); });
+  }
+  if (searchTerm) {
+    rows = rows.filter(function (r) {
+      return String(r['Product Name'] || '').toLowerCase().indexOf(searchTerm) !== -1 ||
+        String(r['SKU'] || '').toLowerCase().indexOf(searchTerm) !== -1;
+    });
+  }
+  if (rows.length === 0) return;
+
+  const headers = ['Claim ID', 'Date', 'Supplier', 'Product Name', 'SKU', 'Qty Defective', 'Defect Type',
+    'Description', 'Status', 'Resolved Date', 'Remarks', 'Submitted By', 'Photo URLs', 'Video URLs'];
+  const csvRows = [headers.map(csvEscape).join(',')];
+
+  rows.forEach(function (r) {
+    csvRows.push([
+      r['Claim ID'], formatClaimDate(r['Date']), r['Supplier'], r['Product Name'], r['SKU'],
+      r['Qty Defective'], defectTypeLabel(r['Defect Type']), r['Description'], r['Status'],
+      r['Resolved Date'], r['Remarks'], r['Submitted By'], r['Photo URLs'], r['Video URLs']
+    ].map(csvEscape).join(','));
+  });
+
+  // Leading BOM so Excel opens UTF-8 (Chinese/Malay/Indonesian text) correctly instead of showing garbled characters
+  const blob = new Blob(['\uFEFF' + csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'defect_claims_' + new Date().toISOString().slice(0, 10) + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
 
 // The cleanup button stays disabled until the confirmation checkbox is ticked —
 // this avoids native confirm()/alert() dialogs while still requiring an explicit opt-in
@@ -2857,11 +3029,18 @@ document.getElementById('cleanupAllBtn').addEventListener('click', function () {
 
 function renderClaimsOverview() {
   const showResolved = document.getElementById('showResolved').checked;
+  const searchTerm = document.getElementById('claimSearchBox').value.trim().toLowerCase();
   const listEl = document.getElementById('claimsList');
 
   let rows = allClaimsCache;
   if (!showResolved) {
     rows = rows.filter(function (r) { return !isResolvedStatus(r['Status']); });
+  }
+  if (searchTerm) {
+    rows = rows.filter(function (r) {
+      return String(r['Product Name'] || '').toLowerCase().indexOf(searchTerm) !== -1 ||
+        String(r['SKU'] || '').toLowerCase().indexOf(searchTerm) !== -1;
+    });
   }
 
   if (rows.length === 0) {
@@ -2909,6 +3088,11 @@ function openStatusModal(rowIndex) {
   if (!record) return;
   currentRowIndex = rowIndex;
   document.getElementById('modalTitle').textContent = t('modal_title_update', { id: record['Claim ID'] });
+  document.getElementById('m_productName').value = record['Product Name'] || '';
+  document.getElementById('m_sku').value = record['SKU'] || '';
+  document.getElementById('m_qty').value = record['Qty Defective'] || '';
+  document.getElementById('m_defectType').value = record['Defect Type'] || 'Broken';
+  document.getElementById('m_description').value = record['Description'] || '';
   document.getElementById('m_status').value = record['Status'] || 'Open';
   document.getElementById('m_resolvedDate').value = record['Resolved Date'] || '';
   document.getElementById('m_remarks').value = record['Remarks'] || '';
@@ -2978,12 +3162,22 @@ document.getElementById('modalClose').addEventListener('click', function () {
 
 document.getElementById('m_saveBtn').addEventListener('click', function () {
   if (!currentRowIndex) return;
+  const productName = document.getElementById('m_productName').value.trim();
+  const sku = document.getElementById('m_sku').value.trim();
+  const qty = document.getElementById('m_qty').value;
+  const defectType = document.getElementById('m_defectType').value;
+  const description = document.getElementById('m_description').value.trim();
   const status = document.getElementById('m_status').value;
   let resolvedDate = document.getElementById('m_resolvedDate').value;
   if (isResolvedStatus(status) && !resolvedDate) {
     resolvedDate = new Date().toISOString().slice(0, 10);
   }
   const remarks = document.getElementById('m_remarks').value;
+
+  if (!productName || !qty) {
+    alert_replacement(t('msg_fill_required'));
+    return;
+  }
 
   const btn = document.getElementById('m_saveBtn');
   btn.disabled = true;
@@ -2992,6 +3186,11 @@ document.getElementById('m_saveBtn').addEventListener('click', function () {
   apiPost({
     action: 'updateStatus',
     rowIndex: currentRowIndex,
+    productName: productName,
+    sku: sku,
+    qty: qty,
+    defectType: defectType,
+    description: description,
     status: status,
     resolvedDate: resolvedDate,
     remarks: remarks
