@@ -1660,8 +1660,9 @@ function renderPhotoRow() {
   const addBtn = document.createElement('div');
   addBtn.className = 'upload-btn';
   addBtn.textContent = '＋';
-  addBtn.addEventListener('click', function () {
-    document.getElementById('photoInput').click();
+  addBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    togglePhotoAddMenu(addBtn);
   });
   row.appendChild(addBtn);
 
@@ -1673,13 +1674,42 @@ function renderPhotoRow() {
   });
 }
 
-// The "+" button triggers the native file picker directly (no custom menu) —
-// on both iOS and Android this picker itself offers "Take Photo/Video" as one
-// of its options alongside the gallery, at full native camera quality. We
-// used to force the camera open via the `capture` attribute for a dedicated
-// "take photo" menu item, but that forces a lower-quality "quick capture"
-// mode on many devices instead of the phone's real Camera app — letting the
-// native picker handle the choice avoids that entirely.
+// The "+" button opens a small menu: "Take Photo" (forces the camera open
+// directly via the `capture` attribute) vs "Choose from Gallery" (plain file
+// picker, no capture). Photos don't have the quality problem videos do when
+// captured this way, so forcing the camera open directly is safe here — this
+// is mainly needed because some Android/Chrome combinations don't reliably
+// offer a "take photo" option within the native file picker on their own.
+function togglePhotoAddMenu(anchorEl) {
+  closePhotoAddMenu();
+  const menu = document.createElement('div');
+  menu.className = 'add-menu';
+  menu.innerHTML =
+    '<div class="add-menu-item" data-action="camera">📷 ' + t('camera_button_title') + '</div>' +
+    '<div class="add-menu-item" data-action="gallery">🖼️ ' + t('gallery_button_title') + '</div>';
+  anchorEl.appendChild(menu);
+
+  menu.querySelector('[data-action="camera"]').addEventListener('click', function (e) {
+    e.stopPropagation();
+    closePhotoAddMenu();
+    const input = document.getElementById('photoInput');
+    input.setAttribute('capture', 'environment');
+    input.click();
+  });
+  menu.querySelector('[data-action="gallery"]').addEventListener('click', function (e) {
+    e.stopPropagation();
+    closePhotoAddMenu();
+    const input = document.getElementById('photoInput');
+    input.removeAttribute('capture');
+    input.click();
+  });
+}
+
+function closePhotoAddMenu() {
+  document.querySelectorAll('.add-menu').forEach(function (m) { m.remove(); });
+}
+
+document.addEventListener('click', closePhotoAddMenu);
 
 /****************************************************************
  * ============ Page 1: Video upload ============
