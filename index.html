@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Supplier Defect Claim Manager</title>
+<meta name="theme-color" content="#2563eb">
+<link rel="manifest" href="manifest.json">
+<!-- iOS was already installing as a proper full-screen app without these, but
+     they're standard practice and don't change that existing behavior. -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Defect Claim">
+<link rel="apple-touch-icon" href="icon-192.png">
 <!-- Google Identity Services — used only for the optional "direct to Drive" upload path (OAuth token request). Harmless/no-op if CONFIG.GOOGLE_CLIENT_ID is left blank. -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <!-- jsQR — pure-JS QR code decoder (no native API dependency, works in Safari too, unlike BarcodeDetector) -->
@@ -3481,6 +3489,20 @@ document.getElementById('kitPickerBox').style.display = 'none';
 document.getElementById('kitPickerList').innerHTML = '';
 document.getElementById('kitSelectedSummary').style.display = 'none';
 document.getElementById('kitSelectedSummaryText').textContent = '';
+
+// Registers sw.js — required for Chrome on Android to treat "Add to Home
+// Screen" as installing a real standalone app (no URL bar) instead of just a
+// browser-shortcut icon. iOS Safari doesn't need this (different criteria),
+// so this has no effect there either way. Silently does nothing if sw.js
+// isn't reachable (e.g. this file somehow got served without it) rather than
+// breaking anything.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js').catch(function (err) {
+      console.error('Service worker registration failed:', err);
+    });
+  });
+}
 </script>
 </body>
 </html>
