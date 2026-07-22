@@ -297,6 +297,12 @@
         <option value="Others" data-i18n="defect_others">Others</option>
       </select>
 
+      <label data-i18n="label_discovery_stage">Discovered *</label>
+      <select id="f_discoveryStage">
+        <option value="Pre-shipment Testing" data-i18n="discovery_preship">🔍 Found during pre-shipment testing</option>
+        <option value="Customer Return" data-i18n="discovery_return">↩️ Customer returned it as defective</option>
+      </select>
+
       <label data-i18n="label_description">Description</label>
       <textarea id="f_desc" data-i18n-placeholder="ph_description" placeholder="Describe the defect in detail..."></textarea>
 
@@ -514,6 +520,11 @@
       <option value="Missing Parts" data-i18n="defect_missing">Missing Parts</option>
       <option value="Others" data-i18n="defect_others">Others</option>
     </select>
+    <label data-i18n="label_discovery_stage">Discovered *</label>
+    <select id="m_discoveryStage">
+      <option value="Pre-shipment Testing" data-i18n="discovery_preship">🔍 Found during pre-shipment testing</option>
+      <option value="Customer Return" data-i18n="discovery_return">↩️ Customer returned it as defective</option>
+    </select>
     <label data-i18n="label_description">Description</label>
     <textarea id="m_description"></textarea>
     <label data-i18n="label_status">Status</label>
@@ -667,6 +678,9 @@ const TRANSLATIONS = {
     label_qty: 'Qty Defective *', ph_qty: 'e.g. 5',
     label_defect_type: 'Defect Type *',
     defect_broken: 'Broken', defect_defective: 'Defective', defect_wrong: 'Wrong Item', defect_missing: 'Missing Parts', defect_others: 'Others',
+    label_discovery_stage: 'Discovered *',
+    discovery_preship: '🔍 Found during pre-shipment testing',
+    discovery_return: '↩️ Customer returned it as defective',
     label_description: 'Description', ph_description: 'Describe the defect in detail...',
     btn_translate: '🌐 Translate', btn_translating: 'Translating...',
     msg_translate_fail: '⚠️ Translation failed: {err}',
@@ -816,6 +830,9 @@ const TRANSLATIONS = {
     label_qty: 'Kuantiti Rosak *', ph_qty: 'cth: 5',
     label_defect_type: 'Jenis Kerosakan *',
     defect_broken: 'Pecah/Rosak', defect_defective: 'Cacat', defect_wrong: 'Barang Salah', defect_missing: 'Bahagian Hilang', defect_others: 'Lain-lain',
+    label_discovery_stage: 'Ditemui *',
+    discovery_preship: '🔍 Ditemui semasa ujian pra-penghantaran',
+    discovery_return: '↩️ Dipulangkan oleh pelanggan kerana rosak',
     label_description: 'Penerangan', ph_description: 'Terangkan kerosakan secara terperinci...',
     btn_translate: '🌐 Terjemah', btn_translating: 'Menterjemah...',
     msg_translate_fail: '⚠️ Terjemahan gagal: {err}',
@@ -965,6 +982,9 @@ const TRANSLATIONS = {
     label_qty: 'Jumlah Rusak *', ph_qty: 'cth: 5',
     label_defect_type: 'Jenis Kerusakan *',
     defect_broken: 'Rusak/Pecah', defect_defective: 'Cacat', defect_wrong: 'Barang Salah', defect_missing: 'Bagian Hilang', defect_others: 'Lainnya',
+    label_discovery_stage: 'Ditemukan *',
+    discovery_preship: '🔍 Ditemukan saat pengujian pra-pengiriman',
+    discovery_return: '↩️ Dikembalikan pelanggan karena rusak',
     label_description: 'Deskripsi', ph_description: 'Jelaskan kerusakan secara detail...',
     btn_translate: '🌐 Terjemahkan', btn_translating: 'Menerjemahkan...',
     msg_translate_fail: '⚠️ Terjemahan gagal: {err}',
@@ -1114,6 +1134,9 @@ const TRANSLATIONS = {
     label_qty: '损坏数量 *', ph_qty: '例如：5',
     label_defect_type: '损坏类型 *',
     defect_broken: '破损', defect_defective: '瑕疵', defect_wrong: '错货', defect_missing: '缺件', defect_others: '其他',
+    label_discovery_stage: '发现阶段 *',
+    discovery_preship: '🔍 寄出前测试发现',
+    discovery_return: '↩️ 客人说坏了退回来',
     label_description: '文字描述', ph_description: '详细描述损坏情况...',
     btn_translate: '🌐 翻译', btn_translating: '翻译中...',
     msg_translate_fail: '⚠️ 翻译失败：{err}',
@@ -1262,6 +1285,11 @@ function tArr(key) {
 
 function defectTypeLabel(value) {
   const map = { 'Broken': 'defect_broken', 'Defective': 'defect_defective', 'Wrong Item': 'defect_wrong', 'Missing Parts': 'defect_missing', 'Others': 'defect_others' };
+  return map[value] ? t(map[value]) : value;
+}
+
+function discoveryStageLabel(value) {
+  const map = { 'Pre-shipment Testing': 'discovery_preship', 'Customer Return': 'discovery_return' };
   return map[value] ? t(map[value]) : value;
 }
 
@@ -2584,6 +2612,7 @@ document.getElementById('submitBtn').addEventListener('click', function () {
   const supplier = document.getElementById('f_supplier').value;
   const qty = document.getElementById('f_qty').value;
   const defectType = document.getElementById('f_type').value;
+  const discoveryStage = document.getElementById('f_discoveryStage').value;
   const description = document.getElementById('f_desc').value.trim();
 
   // Multi-item mode: one or more kit component items were picked via QR scan.
@@ -2603,10 +2632,10 @@ document.getElementById('submitBtn').addEventListener('click', function () {
   checkForDuplicateClaims(itemsToSubmit).then(function (duplicates) {
     if (duplicates.length > 0) {
       showDuplicateWarning(duplicates, function () {
-        proceedWithSubmission(itemsToSubmit, supplier, qty, defectType, description);
+        proceedWithSubmission(itemsToSubmit, supplier, qty, defectType, discoveryStage, description);
       });
     } else {
-      proceedWithSubmission(itemsToSubmit, supplier, qty, defectType, description);
+      proceedWithSubmission(itemsToSubmit, supplier, qty, defectType, discoveryStage, description);
     }
   });
 });
@@ -2668,7 +2697,7 @@ function showDuplicateWarning(duplicates, onContinue) {
   closeBtn.addEventListener('click', onCancelClick);
 }
 
-function proceedWithSubmission(itemsToSubmit, supplier, qty, defectType, description) {
+function proceedWithSubmission(itemsToSubmit, supplier, qty, defectType, discoveryStage, description) {
   const btn = document.getElementById('submitBtn');
   btn.disabled = true;
   const submitStartTime = Date.now();
@@ -2686,7 +2715,8 @@ function proceedWithSubmission(itemsToSubmit, supplier, qty, defectType, descrip
   const submittedBy = connectedUserEmail || document.getElementById('f_yourName').value.trim();
 
   const baseClaimData = {
-    supplier: supplier, qty: qty, defectType: defectType, description: description, submittedBy: submittedBy
+    supplier: supplier, qty: qty, defectType: defectType, discoveryStage: discoveryStage,
+    description: description, submittedBy: submittedBy
   };
 
   const results = [];
@@ -2970,13 +3000,13 @@ document.getElementById('exportClaimsBtn').addEventListener('click', function ()
   if (rows.length === 0) return;
 
   const headers = ['Claim ID', 'Date', 'Supplier', 'Product Name', 'SKU', 'Qty Defective', 'Defect Type',
-    'Description', 'Status', 'Resolved Date', 'Remarks', 'Submitted By', 'Photo URLs', 'Video URLs'];
+    'Discovery Stage', 'Description', 'Status', 'Resolved Date', 'Remarks', 'Submitted By', 'Photo URLs', 'Video URLs'];
   const csvRows = [headers.map(csvEscape).join(',')];
 
   rows.forEach(function (r) {
     csvRows.push([
       r['Claim ID'], formatClaimDate(r['Date']), r['Supplier'], r['Product Name'], r['SKU'],
-      r['Qty Defective'], defectTypeLabel(r['Defect Type']), r['Description'], r['Status'],
+      r['Qty Defective'], defectTypeLabel(r['Defect Type']), discoveryStageLabel(r['Discovery Stage']), r['Description'], r['Status'],
       r['Resolved Date'], r['Remarks'], r['Submitted By'], r['Photo URLs'], r['Video URLs']
     ].map(csvEscape).join(','));
   });
@@ -3089,7 +3119,7 @@ function renderClaimsOverview() {
       html += '<div class="claim-item" data-rowindex="' + r.rowIndex + '">' +
         '<div class="top-row"><span class="claim-id">' + escapeHtml(r['Claim ID']) + '</span><span>' + meta.label + '</span></div>' +
         '<div class="prod">' + escapeHtml(r['Product Name']) + (r['SKU'] ? ' (SKU: ' + escapeHtml(r['SKU']) + ')' : '') + '</div>' +
-        '<div class="meta">' + t('meta_qty') + ': ' + escapeHtml(r['Qty Defective']) + ' ｜ ' + t('meta_type') + ': ' + escapeHtml(defectTypeLabel(r['Defect Type'])) + ' ｜ ' + escapeHtml(formatClaimDate(r['Date'])) + '</div>' +
+        '<div class="meta">' + t('meta_qty') + ': ' + escapeHtml(r['Qty Defective']) + ' ｜ ' + t('meta_type') + ': ' + escapeHtml(defectTypeLabel(r['Defect Type'])) + ' ｜ ' + escapeHtml(discoveryStageLabel(r['Discovery Stage'])) + ' ｜ ' + escapeHtml(formatClaimDate(r['Date'])) + '</div>' +
         '</div>';
     });
     html += '</div>';
@@ -3117,6 +3147,7 @@ function openStatusModal(rowIndex) {
   document.getElementById('m_sku').value = record['SKU'] || '';
   document.getElementById('m_qty').value = record['Qty Defective'] || '';
   document.getElementById('m_defectType').value = record['Defect Type'] || 'Broken';
+  document.getElementById('m_discoveryStage').value = record['Discovery Stage'] || 'Pre-shipment Testing';
   document.getElementById('m_description').value = record['Description'] || '';
   document.getElementById('m_status').value = record['Status'] || 'Open';
   document.getElementById('m_resolvedDate').value = record['Resolved Date'] || '';
@@ -3191,6 +3222,7 @@ document.getElementById('m_saveBtn').addEventListener('click', function () {
   const sku = document.getElementById('m_sku').value.trim();
   const qty = document.getElementById('m_qty').value;
   const defectType = document.getElementById('m_defectType').value;
+  const discoveryStage = document.getElementById('m_discoveryStage').value;
   const description = document.getElementById('m_description').value.trim();
   const status = document.getElementById('m_status').value;
   let resolvedDate = document.getElementById('m_resolvedDate').value;
@@ -3215,6 +3247,7 @@ document.getElementById('m_saveBtn').addEventListener('click', function () {
     sku: sku,
     qty: qty,
     defectType: defectType,
+    discoveryStage: discoveryStage,
     description: description,
     status: status,
     resolvedDate: resolvedDate,
