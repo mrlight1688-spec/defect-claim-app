@@ -2712,7 +2712,8 @@ function proceedWithSubmission(itemsToSubmit, supplier, qty, defectType, discove
 
   // Prefer the connected Google account's email (only available if Drive is
   // connected) — falls back to whatever they typed in "Your Name", if anything.
-  const submittedBy = connectedUserEmail || document.getElementById('f_yourName').value.trim();
+  const yourName = document.getElementById('f_yourName').value.trim();
+  const submittedBy = (yourName && connectedUserEmail) ? (yourName + ' (' + connectedUserEmail + ')') : (yourName || connectedUserEmail || '');
 
   const baseClaimData = {
     supplier: supplier, qty: qty, defectType: defectType, discoveryStage: discoveryStage,
