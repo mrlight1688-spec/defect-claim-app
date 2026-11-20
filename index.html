@@ -327,10 +327,12 @@
   <div id="page2" class="page" style="display:none;">
     <div class="card">
       <h2 data-i18n="page2_h2">Claim Status Overview</h2>
-      <div class="checkbox-row">
-        <input type="checkbox" id="showResolved">
-        <label for="showResolved" data-i18n="chk_show_resolved">Show Resolved claims (Successful / Rejected)</label>
-      </div>
+      <label for="showResolved" data-i18n="label_status_filter">Show</label>
+      <select id="showResolved">
+        <option value="unresolved" data-i18n="filter_unresolved">Unresolved only (Open / Pending)</option>
+        <option value="resolved" data-i18n="filter_resolved">Resolved only (Successful / Rejected)</option>
+        <option value="all" data-i18n="filter_all">All claims</option>
+      </select>
       <label data-i18n="label_search_claims">Search by product name or SKU</label>
       <input type="text" id="claimSearchBox" data-i18n-placeholder="ph_search_claims" placeholder="Type to filter...">
       <button class="btn btn-secondary btn-small" id="refreshBtn" data-i18n="btn_refresh" style="margin-top:12px;">🔄 Refresh</button>
@@ -716,6 +718,10 @@ const TRANSLATIONS = {
 
     page2_h2: 'Claim Status Overview',
     chk_show_resolved: 'Show Resolved claims (Successful / Rejected)',
+    label_status_filter: 'Show',
+    filter_unresolved: 'Unresolved only (Open / Pending)',
+    filter_resolved: 'Resolved only (Successful / Rejected)',
+    filter_all: 'All claims',
     label_search_claims: 'Search by product name or SKU',
     ph_search_claims: 'Type to filter...',
     btn_export_excel: '📥 Export to Excel',
@@ -868,6 +874,10 @@ const TRANSLATIONS = {
 
     page2_h2: 'Ringkasan Status Tuntutan',
     chk_show_resolved: 'Papar tuntutan Selesai (Berjaya / Ditolak)',
+    label_status_filter: 'Papar',
+    filter_unresolved: 'Belum selesai sahaja (Terbuka / Menunggu)',
+    filter_resolved: 'Selesai sahaja (Berjaya / Ditolak)',
+    filter_all: 'Semua tuntutan',
     label_search_claims: 'Cari mengikut nama produk atau SKU',
     ph_search_claims: 'Taip untuk tapis...',
     btn_export_excel: '📥 Eksport ke Excel',
@@ -1020,6 +1030,10 @@ const TRANSLATIONS = {
 
     page2_h2: 'Ringkasan Status Klaim',
     chk_show_resolved: 'Tampilkan klaim Selesai (Berhasil / Ditolak)',
+    label_status_filter: 'Tampilkan',
+    filter_unresolved: 'Belum selesai saja (Terbuka / Menunggu)',
+    filter_resolved: 'Selesai saja (Berhasil / Ditolak)',
+    filter_all: 'Semua klaim',
     label_search_claims: 'Cari berdasarkan nama produk atau SKU',
     ph_search_claims: 'Ketik untuk menyaring...',
     btn_export_excel: '📥 Ekspor ke Excel',
@@ -1172,6 +1186,10 @@ const TRANSLATIONS = {
 
     page2_h2: 'Claim 状态总览',
     chk_show_resolved: '显示已解决的记录（成功 / 被拒）',
+    label_status_filter: '显示',
+    filter_unresolved: '仅未解决（待处理 / 等待回复）',
+    filter_resolved: '仅已解决（成功 / 被拒）',
+    filter_all: '全部记录',
     label_search_claims: '按产品名称或 SKU 搜索',
     ph_search_claims: '输入以筛选...',
     btn_export_excel: '📥 汇出 Excel',
@@ -2995,12 +3013,14 @@ document.getElementById('claimSearchBox').addEventListener('input', renderClaims
 // "show resolved" checkbox) — not the whole cache — so what you export
 // matches what you were just looking at.
 document.getElementById('exportClaimsBtn').addEventListener('click', function () {
-  const showResolved = document.getElementById('showResolved').checked;
+  const statusFilter = document.getElementById('showResolved').value;
   const searchTerm = document.getElementById('claimSearchBox').value.trim().toLowerCase();
 
   let rows = allClaimsCache || [];
-  if (!showResolved) {
+  if (statusFilter === 'unresolved') {
     rows = rows.filter(function (r) { return !isResolvedStatus(r['Status']); });
+  } else if (statusFilter === 'resolved') {
+    rows = rows.filter(function (r) { return isResolvedStatus(r['Status']); });
   }
   if (searchTerm) {
     rows = rows.filter(function (r) {
@@ -3094,13 +3114,15 @@ document.getElementById('cleanupAllBtn').addEventListener('click', function () {
 });
 
 function renderClaimsOverview() {
-  const showResolved = document.getElementById('showResolved').checked;
+  const statusFilter = document.getElementById('showResolved').value;
   const searchTerm = document.getElementById('claimSearchBox').value.trim().toLowerCase();
   const listEl = document.getElementById('claimsList');
 
   let rows = allClaimsCache;
-  if (!showResolved) {
+  if (statusFilter === 'unresolved') {
     rows = rows.filter(function (r) { return !isResolvedStatus(r['Status']); });
+  } else if (statusFilter === 'resolved') {
+    rows = rows.filter(function (r) { return isResolvedStatus(r['Status']); });
   }
   if (searchTerm) {
     rows = rows.filter(function (r) {
