@@ -1693,11 +1693,21 @@ function formatClaimDate(isoString) {
 
 // A claim counts as "resolved" (closed either way) if its status starts with "Resolved"
 function isResolvedStatus(status) {
-  return String(status || '').indexOf('Resolved') === 0;
+  return normalizeStatus(status).indexOf('Resolved') === 0;
 }
 
 // Maps a status string to its dot color class and translated display label
+function normalizeStatus(s) {
+  const raw = String(s == null ? '' : s).toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!raw) return 'Open';
+  if (raw.indexOf('reject') !== -1 || raw.indexOf('denied') !== -1) return 'Resolved - Rejected';
+  if (raw.indexOf('success') !== -1 || raw.indexOf('approved') !== -1 || raw.indexOf('resolved') !== -1 || raw.indexOf('solved') !== -1) return 'Resolved - Claim Successful';
+  if (raw.indexOf('pending') !== -1) return 'Pending Supplier Reply';
+  return 'Open';
+}
+
 function getStatusMeta(status) {
+  status = normalizeStatus(status);
   if (status === 'Resolved - Claim Successful') return { dotClass: 'dot-resolved', label: t('status_success') };
   if (status === 'Resolved - Rejected') return { dotClass: 'dot-rejected', label: t('status_rejected') };
   if (status === 'Pending Supplier Reply') return { dotClass: 'dot-pending', label: t('status_pending') };
@@ -2650,7 +2660,7 @@ function checkForDuplicateClaims(itemsToSubmit) {
     if (!rows || rows.error) return [];
     const todayStr = new Date().toISOString().slice(0, 10);
     const candidates = rows.filter(function (r) {
-      const status = r['Status'];
+      const status = normalizeStatus(r['Status']);
       if (status !== 'Open' && status !== 'Pending Supplier Reply') return false;
       const d = new Date(r['Date']);
       if (isNaN(d.getTime())) return false;
@@ -3150,7 +3160,7 @@ function openStatusModal(rowIndex) {
   document.getElementById('m_defectType').value = record['Defect Type'] || 'Broken';
   document.getElementById('m_discoveryStage').value = record['Discovery Stage'] || 'Pre-shipment Testing';
   document.getElementById('m_description').value = record['Description'] || '';
-  document.getElementById('m_status').value = record['Status'] || 'Open';
+  document.getElementById('m_status').value = normalizeStatus(record['Status']);
   document.getElementById('m_resolvedDate').value = record['Resolved Date'] || '';
   document.getElementById('m_remarks').value = record['Remarks'] || '';
   checkResolvedDateReminder();
@@ -3158,7 +3168,7 @@ function openStatusModal(rowIndex) {
   // Only claims already saved as "Resolved - Claim Successful" get the option
   // to delete right now instead of waiting for the automatic 30-day cleanup.
   const deleteSection = document.getElementById('m_deleteSection');
-  deleteSection.style.display = (record['Status'] === 'Resolved - Claim Successful') ? 'block' : 'none';
+  deleteSection.style.display = (normalizeStatus(record['Status']) === 'Resolved - Claim Successful') ? 'block' : 'none';
   document.getElementById('m_deleteConfirm').checked = false;
   document.getElementById('m_deleteBtn').disabled = true;
   document.getElementById('m_deleteMsg').className = 'msg';
@@ -3640,7 +3650,7 @@ document.getElementById('analyzeBtn').addEventListener('click', function () {
     if (rows.error) throw new Error(rows.error);
     let filtered = rows;
     if (excludeRejected) {
-      filtered = filtered.filter(function (r) { return r['Status'] !== 'Resolved - Rejected'; });
+      filtered = filtered.filter(function (r) { return normalizeStatus(r['Status']) !== 'Resolved - Rejected'; });
     }
     if (filtered.length === 0) {
       document.getElementById('analysisResult').style.display = 'none';
